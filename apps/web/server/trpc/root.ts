@@ -1,4 +1,5 @@
 import { router, publicProcedure } from "./trpc";
+import { profileRouter } from "./profileRouter";
 
 export const appRouter = router({
   ping: publicProcedure.query(() => {
@@ -7,6 +8,7 @@ export const appRouter = router({
       timestamp: new Date().toISOString(),
     };
   }),
+  profile: profileRouter,
 });
 
 export type AppRouter = typeof appRouter;
