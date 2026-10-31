@@ -1,0 +1,289 @@
+// ────────────────────────────────────────────────────────────
+// AI Job Intelligence Platform — Prisma Schema
+// Provider: Neon PostgreSQL + pgvector
+// ────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector]
+}
+
+// ────────────────────────────────────────────────────────────
+// ENUMS
+// ────────────────────────────────────────────────────────────
+
+enum RemotePreference {
+  REMOTE
+  HYBRID
+  ONSITE
+  NO_PREFERENCE
+}
+
+enum SkillSource {
+  RESUME
+  MANUAL
+}
+
+enum AtsType {
+  GREENHOUSE
+  LEVER
+  ASHBY
+  WORKDAY
+  SMARTRECRUITERS
+  WORKABLE
+  WELLFOUND
+  CUSTOM_FIRECRAWL
+  CUSTOM_PUPPETEER
+}
+
+enum JobSource {
+  GREENHOUSE
+  LEVER
+  ASHBY
+  WORKDAY
+  SMARTRECRUITERS
+  WORKABLE
+  WELLFOUND
+  FIRECRAWL
+  PUPPETEER
+}
+
+enum ApplicationStatus {
+  DISCOVERED   // found by the system, not yet reviewed by user
+  SAVED
+  APPLIED
+  OA_RECEIVED
+  OA_CLEARED
+  INTERVIEW_SCHEDULED
+  INTERVIEW_CLEARED
+  OFFER
+  REJECTED
+  GHOSTED
+}
+
+enum ReportType {
+  DAILY
+  WEEKLY
+}
+
+// ────────────────────────────────────────────────────────────
+// USER + PROFILE
+// ────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile        CandidateProfile?
+  userSkills     UserSkill[]
+  jobs           Job[]
+  reports        Report[]
+  skillGapRecs   SkillGapRecommendation[]
+  statusHistory  ApplicationStatusHistory[]
+
+  @@map("users")
+}
+
+model CandidateProfile {
+  id                 String            @id @default(cuid())
+  userId             String            @unique
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  experienceYears    Float?
+  professionalSummary String?          @db.Text
+  preferredRoles     String[]          @default([])
+  preferredLocations String[]          @default([])
+  minSalary          Int?
+  maxSalary          Int?
+  remotePreference   RemotePreference  @default(NO_PREFERENCE)
+
+  // Structured extraction from resume — kept even after the resume file is deleted
+  experienceSummary  Json?             // e.g. [{ company, title, start, end, highlights[] }]
+  projectsSummary    Json?             // e.g. [{ name, description, tech[] }]
+  educationSummary   Json?             // e.g. [{ school, degree, field, year }]
+
+  resumeUploadedAt   DateTime?
+  resumeParsedAt     DateTime?
+
+  // Embedding of the profile (summary + skills + projects) for semantic matching
+  profileEmbedding   Unsupported("vector(1536)")?
+
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@map("candidate_profiles")
+}
+
+// ────────────────────────────────────────────────────────────
+// SKILLS
+// ────────────────────────────────────────────────────────────
+
+model Skill {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  category  String?     // e.g. "language", "framework", "infra", "database"
+
+  userSkills UserSkill[]
+  jobSkills  JobSkill[]
+
+  @@map("skills")
+}
+
+model UserSkill {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId      String
+  skill        Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  source       SkillSource @default(RESUME)
+  proficiency  String?     // optional: "beginner" | "intermediate" | "advanced"
+  yearsOfUse   Float?
+
+  createdAt    DateTime    @default(now())
+
+  @@unique([userId, skillId])
+  @@map("user_skills")
+}
+
+// ────────────────────────────────────────────────────────────
+// COMPANY REGISTRY
+// ────────────────────────────────────────────────────────────
+
+model Company {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  atsType        AtsType
+  atsIdentifier  String?  // e.g. Greenhouse board token, Lever site slug
+  careerPageUrl  String?
+  active         Boolean  @default(true)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  jobs           Job[]
+
+  @@map("companies")
+}
+
+// ────────────────────────────────────────────────────────────
+// JOBS (per-user, per your retention model)
+// ────────────────────────────────────────────────────────────
+
+model Job {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id])
+
+  externalId      String?           // ID from the source ATS, for de-duping
+  title           String
+  description     String            @db.Text
+  location        String?
+  remote          Boolean           @default(false)
+  salaryMin       Int?
+  salaryMax       Int?
+  applicationUrl  String
+
+  source          JobSource
+  status          ApplicationStatus @default(DISCOVERED)
+
+  matchScore      Float?            // 0–100
+  matchedSkills   String[]          @default([])
+  missingSkills   String[]          @default([])
+  aiExplanation   String?           @db.Text
+
+  jobEmbedding    Unsupported("vector(1536)")?
+
+  jobSkills       JobSkill[]
+  statusHistory   ApplicationStatusHistory[]
+
+  discoveredAt    DateTime          @default(now())
+  expiresAt       DateTime          // set to discoveredAt + 40 days at creation
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([userId, companyId, externalId])
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@map("jobs")
+}
+
+model JobSkill {
+  id       String @id @default(cuid())
+  jobId    String
+  job      Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skillId  String
+  skill    Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  required Boolean @default(true) // required vs. nice-to-have, if extractable
+
+  @@unique([jobId, skillId])
+  @@map("job_skills")
+}
+
+// Tracks every status transition for a job application (for timeline/history views)
+model ApplicationStatusHistory {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  status    ApplicationStatus
+  changedAt DateTime          @default(now())
+  note      String?
+
+  @@index([jobId])
+  @@map("application_status_history")
+}
+
+// ────────────────────────────────────────────────────────────
+// SKILL GAP RECOMMENDATIONS
+// ────────────────────────────────────────────────────────────
+
+model SkillGapRecommendation {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  skillName      String
+  frequency      Int      @default(1)  // how many recent jobs required this missing skill
+  trendScore     Float?                // optional external signal (e.g. demand trend)
+  estimatedLift  Float?                // e.g. "+15% match rate" style estimate
+
+  recommendedAt  DateTime @default(now())
+
+  @@index([userId])
+  @@map("skill_gap_recommendations")
+}
+
+// ────────────────────────────────────────────────────────────
+// REPORTS
+// ────────────────────────────────────────────────────────────
+
+model Report {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type        ReportType
+  summary     Json       // structured summary: newJobs, bestMatches, skillGaps, statusChanges
+  fileUrl     String?    // link to generated Excel file, if stored externally
+
+  generatedAt DateTime   @default(now())
+
+  @@index([userId, generatedAt])
+  @@map("reports")
+}
