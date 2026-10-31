@@ -6,6 +6,7 @@ import {
   UpdateJobStatusInputSchema,
 } from "@repo/shared-types";
 import { searchAndSyncJobs } from "@/server/discovery";
+import { scoreJobsForUser } from "@/server/matching";
 
 export const jobsRouter = router({
   // 1. List jobs for authenticated user with filters and pagination
@@ -168,7 +169,19 @@ export const jobsRouter = router({
     return result;
   }),
 
-  // 5. Cleanup expired jobs older than expiresAt (AC 18.1, ADR-009)
+  // 5. Score jobs for authenticated user (AC 10.1, AC 11.1, AC 12.1)
+  scoreAll: protectedProcedure
+    .input(z.object({ jobIds: z.array(z.string()).optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+      const result = await scoreJobsForUser(ctx.userId, input?.jobIds);
+      return {
+        scoredCount: result.scored.length,
+        failedCount: result.failed.length,
+        scored: result.scored,
+      };
+    }),
+
+  // 6. Cleanup expired jobs older than expiresAt (AC 18.1, ADR-009)
   cleanupExpired: protectedProcedure.mutation(async ({ ctx }) => {
     const now = new Date();
     const result = await ctx.prisma.job.deleteMany({

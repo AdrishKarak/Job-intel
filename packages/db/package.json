@@ -8,6 +8,7 @@
     "prisma": "dotenv -e ../../apps/web/.env -- prisma",
     "seed": "dotenv -e ../../apps/web/.env -- tsx seed.ts",
     "sync-jobs": "dotenv -e ../../apps/web/.env -- tsx sync-jobs.ts",
+    "score-jobs": "dotenv -e ../../apps/web/.env -- tsx score-jobs.ts",
     "generate": "dotenv -e ../../apps/web/.env -- prisma generate",
     "migrate": "dotenv -e ../../apps/web/.env -- prisma migrate dev",
     "typecheck": "tsc --noEmit"

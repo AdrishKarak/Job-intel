@@ -40,7 +40,7 @@ export function JobDetailPanel({
   onClose,
   onStatusUpdated,
 }: JobDetailPanelProps) {
-  const { data: job, isLoading } = trpc.jobs.getById.useQuery({ jobId });
+  const { data: job, isLoading, refetch } = trpc.jobs.getById.useQuery({ jobId });
   const [selectedStatus, setSelectedStatus] = useState<ApplicationStatus | null>(null);
   const [note, setNote] = useState("");
 
@@ -48,6 +48,13 @@ export function JobDetailPanel({
     onSuccess: () => {
       onStatusUpdated?.();
       setNote("");
+    },
+  });
+
+  const scoreMutation = trpc.jobs.scoreAll.useMutation({
+    onSuccess: () => {
+      refetch();
+      onStatusUpdated?.();
     },
   });
 
@@ -162,6 +169,100 @@ export function JobDetailPanel({
                 placeholder="Optional transition note (e.g. Completed initial recruiter screen)..."
                 className="w-full px-3 py-1.5 border-2 border-ink bg-paper text-xs font-mono focus:outline-none"
               />
+            </div>
+          </div>
+
+          {/* Match Analysis & AI Explanation (AC 10.1, 11.1, 12.1) */}
+          <div className="neo-card p-5 bg-paper space-y-4">
+            <div className="flex items-center justify-between border-b-2 border-ink pb-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-ink" />
+                <h3 className="font-display text-sm uppercase text-ink">
+                  AI Fit Assessment
+                </h3>
+              </div>
+              {job?.matchScore !== null && job?.matchScore !== undefined ? (
+                <div
+                  className={`px-3 py-1 border-2 border-ink font-mono font-bold text-sm shadow-neo-sm ${
+                    job.matchScore >= 80
+                      ? "bg-mint"
+                      : job.matchScore >= 70
+                      ? "bg-sky"
+                      : "bg-neutral-100"
+                  }`}
+                >
+                  {Math.round(job.matchScore)}% FIT
+                </div>
+              ) : (
+                <button
+                  onClick={() => scoreMutation.mutate({ jobIds: [jobId] })}
+                  disabled={scoreMutation.isPending}
+                  className="px-3 py-1 bg-mint border-2 border-ink text-xs font-bold shadow-neo-sm neo-shadow-press"
+                >
+                  {scoreMutation.isPending ? "Evaluating..." : "Evaluate Fit"}
+                </button>
+              )}
+            </div>
+
+            {/* AI Explanation */}
+            {job?.aiExplanation && (
+              <div className="p-3 bg-neutral-50 border-2 border-ink text-xs font-mono leading-relaxed text-ink/90">
+                <span className="font-bold text-ink uppercase block text-[10px] mb-1">
+                  Reasoning Summary:
+                </span>
+                {job.aiExplanation}
+              </div>
+            )}
+
+            {/* Matched vs Missing Skills breakdown (AC 11.1) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Matched Skills */}
+              <div className="p-3 bg-mint/20 border-2 border-ink space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-ink">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-ink" />
+                  <span>Matched Skills ({job?.matchedSkills?.length || 0})</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {job?.matchedSkills && job.matchedSkills.length > 0 ? (
+                    job.matchedSkills.map((skill, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 bg-mint border border-ink text-[11px] font-mono font-bold"
+                      >
+                        {skill}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[11px] font-mono text-ink/60 italic">
+                      None identified
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Missing Skills */}
+              <div className="p-3 bg-coral/20 border-2 border-ink space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-ink">
+                  <AlertTriangle className="w-3.5 h-3.5 text-ink" />
+                  <span>Skill Gaps ({job?.missingSkills?.length || 0})</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {job?.missingSkills && job.missingSkills.length > 0 ? (
+                    job.missingSkills.map((skill, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 bg-coral/40 border border-ink text-[11px] font-mono font-bold"
+                      >
+                        {skill}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[11px] font-mono text-ink/60 italic">
+                      No missing requirements
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 

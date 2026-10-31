@@ -41,6 +41,13 @@ export default function JobsPage() {
     },
   });
 
+  const scoreAllMutation = trpc.jobs.scoreAll.useMutation({
+    onSuccess: (res) => {
+      utils.jobs.list.invalidate();
+      alert(`Scored ${res.scoredCount} jobs against your profile.`);
+    },
+  });
+
   const cleanupMutation = trpc.jobs.cleanupExpired.useMutation({
     onSuccess: (res) => {
       utils.jobs.list.invalidate();
@@ -62,6 +69,14 @@ export default function JobsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => scoreAllMutation.mutate({})}
+              disabled={scoreAllMutation.isPending}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-mint border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${scoreAllMutation.isPending ? "animate-spin" : ""}`} />
+              <span>{scoreAllMutation.isPending ? "Scoring..." : "Score All Jobs"}</span>
+            </button>
             <button
               onClick={() => cleanupMutation.mutate()}
               disabled={cleanupMutation.isPending}

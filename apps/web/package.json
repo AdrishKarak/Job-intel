@@ -15,6 +15,7 @@
     "@aws-sdk/s3-request-presigner": "^3.682.0",
     "@clerk/nextjs": "^6.0.2",
     "@google/generative-ai": "^0.21.0",
+    "@repo/ai-clients": "workspace:*",
     "@repo/ats-connectors": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/shared-types": "workspace:*",

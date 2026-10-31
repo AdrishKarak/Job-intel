@@ -47,10 +47,36 @@ Per ADR-012, through Phase 8 the system operates as a single application (`apps/
 - **Step 3.1**: Built `jobsRouter` with `list` (multi-field filtering, sorting, pagination, strict `userId` scoping), `getById`, `updateStatus` (append-only `ApplicationStatusHistory`), `syncDiscovery`, and `cleanupExpired` (40-day retention cleanup). Checks: `pnpm typecheck`. Result: PASS.
 - **Step 3.2**: Built `JobDetailPanel.tsx` slide-over component with external application link (no auto-apply notice per Rule 3), status management buttons, status transition notes, skill tags, and reverse-chronological status timeline. Checks: `pnpm typecheck`. Result: PASS.
 - **Step 3.3**: Built interactive Jobs CRM Page `apps/web/app/jobs/page.tsx` with filter bar, search input, status dropdown, remote-only toggle, tabular CRM view with neobrutalist status badges, and integration tests. Checks: `pnpm typecheck`, `pnpm test` (all 15 tests pass). Result: PASS.
+- **Step 4.1**: Built matching engine with `@repo/ai-clients` (embeddings generator, cosine similarity, Gemini, Groq), `server/matching.ts` (rule-based scoring: 50% skill fit, 20% role fit, 15% location fit, 15% salary fit, plus 30% semantic embedding refinement), grounded explanation generator, `scoreAll` tRPC mutation, score breakdown UI in `JobDetailPanel.tsx` and `JobsPage`, and CLI runner `score-jobs.ts`. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 25 tests pass), `pnpm --filter @repo/db score-jobs` (all 25 database jobs scored), `pnpm --filter web build` (successful Next.js production build). Result: PASS.
 
 ---
 
 ## Phase Reports
+
+### Phase 4 Report: Matching Engine
+- **What was built:**
+  - `packages/ai-clients`: framework-agnostic package providing `embeddings.ts` (1536-dim vector generator using Gemini with normalized deterministic unit-vector fallback), `cosineSimilarity`, and unified Gemini and Groq clients.
+  - `apps/web/server/matching.ts`: comprehensive scoring engine implementing:
+    - `calculateSkillFit`: computes exact matched and missing skill sets and overlap percentage (weight 50%).
+    - `calculateRoleFit`: evaluates title match against candidate `preferredRoles`, handling exact and token matches while filtering generic suffix titles (weight 20%).
+    - `calculateLocationFit`: evaluates remote/hybrid/onsite compatibility against user preferences (weight 15%).
+    - `calculateSalaryFit`: compares job compensation ranges against candidate `minSalary` with proportional scaling (weight 15%).
+    - `generateGroundedExplanation`: generates transparent, grounded explanations citing matched and missing skills (AC 12.1).
+    - `scoreJobsForUser`: orchestrates batch job scoring, calculates 70% rule-based + 30% semantic embedding composite score (0–100), persists `matchScore`, `matchedSkills`, `missingSkills`, and `aiExplanation` to the database.
+  - UI integrations:
+    - `apps/web/app/jobs/components/JobDetailPanel.tsx`: displays color-coded fit score (mint ≥80%, sky 70–79%, paper <70%), AI explanation reasoning box, and distinct columns for Matched Skills (mint) and Skill Gaps (coral), with an on-demand "Evaluate Fit" button.
+    - `apps/web/app/jobs/page.tsx`: added "Score All Jobs" action button and color-coded match score column in the CRM table.
+  - `packages/db/score-jobs.ts`: standalone CLI runner for batch scoring pipeline jobs against candidate profiles.
+  - `apps/web/server/matching.test.ts`: test suite verifying all scoring components, corner cases, and explanation grounding.
+- **Exit Criteria Check:**
+  - User profile scores against at least 20 seeded/discovered jobs: CONFIRMED (25 jobs scored live in Neon Postgres via `pnpm --filter @repo/db score-jobs`).
+  - Match score is a composite (rule-based + embedding semantic similarity): CONFIRMED (70% rule-based + 30% cosine similarity).
+  - Score breakdown visible in UI (matched skills, missing skills, score 0–100): CONFIRMED in `JobDetailPanel.tsx` and `JobsPage`.
+  - Grounded explanation generated for high-scoring jobs: CONFIRMED (cites exact matched/missing skills without hallucinated criteria).
+  - All tests green, typecheck green, build green: CONFIRMED (25/25 tests pass, turbo typecheck succeeds, next build succeeds).
+- **Deviations and New ADRs:** None.
+- **Open Questions:** None.
+- **Next:** Phase 5 — Dashboard Page (Summary cards, recent activity feed, skill gap radar widget, match score distribution).
 
 ### Phase 3 Report: Jobs CRM Page
 - **What was built:**
