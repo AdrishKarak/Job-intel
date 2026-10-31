@@ -44,10 +44,28 @@ Per ADR-012, through Phase 8 the system operates as a single application (`apps/
 - **Step 2.2**: Built Greenhouse and Lever connector modules with 2s retry backoff, timeout handling, and common `NormalizedJob` format mapping. Checks: `pnpm typecheck`. Result: PASS.
 - **Step 2.3**: Seeded 25 premier tech companies across Greenhouse and Lever in `packages/db/seed.ts` (Stripe, Figma, Airbnb, Datadog, Discord, Netlify, Postman, Automattic, Sourcegraph, etc.). Checks: `pnpm db:seed`. Result: PASS.
 - **Step 2.4**: Built discovery sync engine `apps/web/server/discovery.ts` and CLI runner `packages/db/sync-jobs.ts`. Polled live boards from Greenhouse and Lever, normalized job records, set 40-day expiration, and linked extracted skills to Neon Postgres. Checks: `pnpm db:sync`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Result: PASS.
+- **Step 3.1**: Built `jobsRouter` with `list` (multi-field filtering, sorting, pagination, strict `userId` scoping), `getById`, `updateStatus` (append-only `ApplicationStatusHistory`), `syncDiscovery`, and `cleanupExpired` (40-day retention cleanup). Checks: `pnpm typecheck`. Result: PASS.
+- **Step 3.2**: Built `JobDetailPanel.tsx` slide-over component with external application link (no auto-apply notice per Rule 3), status management buttons, status transition notes, skill tags, and reverse-chronological status timeline. Checks: `pnpm typecheck`. Result: PASS.
+- **Step 3.3**: Built interactive Jobs CRM Page `apps/web/app/jobs/page.tsx` with filter bar, search input, status dropdown, remote-only toggle, tabular CRM view with neobrutalist status badges, and integration tests. Checks: `pnpm typecheck`, `pnpm test` (all 15 tests pass). Result: PASS.
 
 ---
 
 ## Phase Reports
+
+### Phase 3 Report: Jobs CRM Page
+- **What was built:**
+  - `apps/web/server/trpc/jobsRouter.ts`: procedures for listing jobs (with role, location, company, minSalary, status, and remote filtering), retrieving single job with full relations, updating status with append-only history tracking (`ApplicationStatusHistory`), and pruning expired jobs (`expiresAt <= now`).
+  - `apps/web/app/jobs/components/JobDetailPanel.tsx`: interactive slide-over panel with external apply link (HITL #3 compliant), 10-stage status pipeline selector, status transition note input, full job description viewer, and audit timeline.
+  - `apps/web/app/jobs/page.tsx`: neobrutalist CRM table with search, status filtering, remote filter, formatted salary ranges, and interactive row inspection.
+  - `apps/web/server/trpc/jobsRouter.test.ts`: automated tests covering strict per-user query isolation (AC 27.1), status transitions and history recording (AC 16.1, AC 16.2), and 40-day expiration pruning (AC 18.1, ADR-009).
+- **Exit Criteria Check:**
+  - User can browse real (unmatched) jobs and manage status manually: CONFIRMED.
+  - Status updates persist immediately and record timestamped history: CONFIRMED.
+  - Cross-user data isolation verified: CONFIRMED.
+  - All unit/integration tests and typecheck green: CONFIRMED.
+- **Deviations and New ADRs:** None.
+- **Open Questions:** None.
+- **Next:** Phase 4 — Matching Engine (Rule-based scoring: skills overlap %, salary fit, location/remote fit; pgvector semantic similarity as refining signal; matched/missing skills computed and stored per job).
 
 ### Phase 2 Report: Company Registry + First ATS Connectors
 - **What was built:**

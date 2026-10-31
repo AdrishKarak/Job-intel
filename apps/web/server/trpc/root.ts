@@ -1,5 +1,6 @@
 import { router, publicProcedure } from "./trpc";
 import { profileRouter } from "./profileRouter";
+import { jobsRouter } from "./jobsRouter";
 
 export const appRouter = router({
   ping: publicProcedure.query(() => {
@@ -9,6 +10,7 @@ export const appRouter = router({
     };
   }),
   profile: profileRouter,
+  jobs: jobsRouter,
 });
 
 export type AppRouter = typeof appRouter;
