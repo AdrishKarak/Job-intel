@@ -40,10 +40,27 @@ Per ADR-012, through Phase 8 the system operates as a single application (`apps/
 - **Step 1.2**: Implemented `server/resumeParser.ts` for text extraction (PDF via `pdf-parse`, DOCX via `mammoth`), prompt injection defense delimiting, Gemini JSON schema extraction, and heuristic fallback. Checks: `pnpm typecheck`. Result: PASS.
 - **Step 1.3**: Built `profileRouter` with `get`, `update`, `addSkill`, `removeSkill`, `createResumeUploadUrl`, `uploadResume`, `previewResumeUpdate`, and `confirmResumeUpdate` (AC 2.1–2.3, AC 6.1–6.2). Checks: `pnpm typecheck`, `pnpm test`. Result: PASS.
 - **Step 1.4**: Built interactive Profile page UI in `apps/web/app/profile/page.tsx` with file upload, HITL review modal, diff preview of changes, manual skill management, and search preferences editor. Checks: `pnpm typecheck`, `pnpm test`, `pnpm build`. Result: PASS.
+- **Step 2.1**: Created `@repo/ats-connectors` package with `normalize.ts` (HTML stripping, remote detection, salary range extraction, skill keyword tagging). Checks: `pnpm --filter @repo/ats-connectors test`. Result: PASS.
+- **Step 2.2**: Built Greenhouse and Lever connector modules with 2s retry backoff, timeout handling, and common `NormalizedJob` format mapping. Checks: `pnpm typecheck`. Result: PASS.
+- **Step 2.3**: Seeded 25 premier tech companies across Greenhouse and Lever in `packages/db/seed.ts` (Stripe, Figma, Airbnb, Datadog, Discord, Netlify, Postman, Automattic, Sourcegraph, etc.). Checks: `pnpm db:seed`. Result: PASS.
+- **Step 2.4**: Built discovery sync engine `apps/web/server/discovery.ts` and CLI runner `packages/db/sync-jobs.ts`. Polled live boards from Greenhouse and Lever, normalized job records, set 40-day expiration, and linked extracted skills to Neon Postgres. Checks: `pnpm db:sync`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Result: PASS.
 
 ---
 
 ## Phase Reports
+
+### Phase 2 Report: Company Registry + First ATS Connectors
+- **What was built:**
+  - `packages/ats-connectors`: framework-agnostic package containing `greenhouse.ts`, `lever.ts`, and `normalize.ts`.
+  - Normalization engine: robust regex-safe skill keyword extraction, HTML stripping, remote location detection, and salary range parsing (`$min - $max` / `$k`).
+  - Company registry seeded: 25 real companies in `packages/db/seed.ts` with correct ATS types and board slugs.
+  - Per-user job discovery engine (`apps/web/server/discovery.ts`) and runnable sync script (`packages/db/sync-jobs.ts` / `pnpm db:sync`), enforcing per-user scoping, unique constraints `(userId, companyId, externalId)`, 40-day retention window (`expiresAt`), and initial `ApplicationStatusHistory` creation.
+- **Exit Criteria Check:**
+  - A script/cron pulls real jobs from Greenhouse + Lever into the DB, normalized correctly: CONFIRMED (`pnpm db:sync` polled 5 active companies, fetched hundreds of live jobs, and stored normalized records into Neon Postgres).
+  - All tests passing across all packages: CONFIRMED.
+- **Deviations and New ADRs:** None. Fixed regex escaping for `C++` in skill keyword scanner.
+- **Open Questions:** None.
+- **Next:** Phase 3 — Jobs CRM Page (Jobs table UI, status management pipeline, filters, detail panel, status history tracking, and retention cleanup).
 
 ### Phase 1 Report: Candidate Profile
 - **What was built:**
