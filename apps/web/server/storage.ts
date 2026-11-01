@@ -27,8 +27,37 @@ const s3Client = hasS3Config
     })
   : null;
 
-const BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || "resumes";
+const BUCKET_NAME = process.env.STORAGE_BUCKET_NAME || "resume";
 const LOCAL_STORAGE_DIR = path.join(process.cwd(), ".storage_temp");
+
+let cachedBucketName: string | null = null;
+
+export async function resolveBucketName(): Promise<string> {
+  if (cachedBucketName) return cachedBucketName;
+
+  const envBucket = process.env.STORAGE_BUCKET_NAME || "resume";
+  if (!s3Client) {
+    cachedBucketName = envBucket;
+    return envBucket;
+  }
+
+  try {
+    const { ListBucketsCommand } = await import("@aws-sdk/client-s3");
+    const res = await s3Client.send(new ListBucketsCommand({}));
+    const found = res.Buckets?.find(
+      (b) => b.Name === envBucket || b.Name === "resume" || b.Name === "resumes"
+    );
+    if (found?.Name) {
+      cachedBucketName = found.Name;
+      return cachedBucketName;
+    }
+  } catch (err) {
+    console.warn("Could not list buckets to resolve name, defaulting to:", envBucket);
+  }
+
+  cachedBucketName = envBucket;
+  return cachedBucketName;
+}
 
 async function ensureLocalDir() {
   try {
@@ -56,8 +85,9 @@ export async function createPresignedUploadUrl(
 
   if (s3Client) {
     try {
+      const bucket = await resolveBucketName();
       const command = new PutObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: bucket,
         Key: storagePath,
         ContentType: contentType,
       });
@@ -87,11 +117,28 @@ export async function createPresignedUploadUrl(
 
 export async function saveLocalResumeBuffer(
   storagePath: string,
-  buffer: Buffer
+  buffer: Buffer,
+  contentType?: string
 ): Promise<void> {
   await ensureLocalDir();
   const filePath = path.join(LOCAL_STORAGE_DIR, storagePath.replace(/\//g, "_"));
   await fs.writeFile(filePath, buffer);
+
+  // If S3 is configured, also persist to S3 bucket from server side
+  if (s3Client) {
+    try {
+      const bucket = await resolveBucketName();
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: storagePath,
+        Body: buffer,
+        ContentType: contentType || "application/pdf",
+      });
+      await s3Client.send(command);
+    } catch (s3Err) {
+      console.warn("Could not mirror buffer to S3, local buffer retained:", s3Err);
+    }
+  }
 }
 
 export async function getResumeFileBuffer(storagePath: string): Promise<Buffer> {
@@ -105,8 +152,9 @@ export async function getResumeFileBuffer(storagePath: string): Promise<Buffer> 
   }
 
   if (s3Client) {
+    const bucket = await resolveBucketName();
     const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: bucket,
       Key: storagePath,
     });
     const response = await s3Client.send(command);
@@ -132,8 +180,9 @@ export async function deleteResumeFile(storagePath: string): Promise<void> {
   // 2. Delete from S3 if configured (ADR-005, ADR-013)
   if (s3Client) {
     try {
+      const bucket = await resolveBucketName();
       const command = new DeleteObjectCommand({
-        Bucket: BUCKET_NAME,
+        Bucket: bucket,
         Key: storagePath,
       });
       await s3Client.send(command);

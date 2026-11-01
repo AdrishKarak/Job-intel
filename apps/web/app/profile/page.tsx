@@ -109,17 +109,37 @@ export default function ProfilePage() {
         sizeBytes: file.size,
       });
 
-      // 2. Upload file to URL
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: {
-          "Content-Type": file.type || "application/octet-stream",
-        },
-      });
+      // 2. Upload file to URL with automatic server fallback
+      let uploadSuccess = false;
+      try {
+        const uploadRes = await fetch(uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+          },
+        });
+        if (uploadRes.ok) {
+          uploadSuccess = true;
+        }
+      } catch (directErr) {
+        console.warn("Direct upload failed (e.g. CORS or network policy), trying server fallback:", directErr);
+      }
 
-      if (!uploadRes.ok) {
-        throw new Error("Failed to upload resume file to storage");
+      if (!uploadSuccess) {
+        // Fallback to internal same-origin route
+        const fallbackUrl = `/api/upload-resume-direct?path=${encodeURIComponent(storagePath)}`;
+        const fallbackRes = await fetch(fallbackUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type || "application/octet-stream",
+          },
+        });
+
+        if (!fallbackRes.ok) {
+          throw new Error("Failed to upload resume file to storage. Please try again.");
+        }
       }
 
       // 3. Kick off async extraction
