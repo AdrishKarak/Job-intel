@@ -35,7 +35,10 @@ export const jobsRouter = router({
       }
 
       if (filters?.role) {
-        where.title = { contains: filters.role, mode: "insensitive" };
+        where.OR = [
+          { title: { contains: filters.role, mode: "insensitive" } },
+          { company: { name: { contains: filters.role, mode: "insensitive" } } },
+        ];
       }
 
       if (filters?.location) {
@@ -53,14 +56,75 @@ export const jobsRouter = router({
       }
 
       if (filters?.minSalary) {
-        where.OR = [
+        const salaryCondition = [
           { salaryMin: { gte: filters.minSalary } },
           { salaryMax: { gte: filters.minSalary } },
         ];
+        where.AND = where.AND ? [...where.AND, { OR: salaryCondition }] : [{ OR: salaryCondition }];
       }
 
       if (filters?.minMatchScore !== undefined) {
         where.matchScore = { gte: filters.minMatchScore };
+      }
+
+      // Filter only jobs matching candidate preferred locations/remote and roles/skills
+      if (filters?.onlyMatching) {
+        const [profile, userSkills] = await Promise.all([
+          ctx.prisma.candidateProfile.findUnique({
+            where: { userId: ctx.userId },
+            select: {
+              preferredLocations: true,
+              preferredRoles: true,
+              remotePreference: true,
+            },
+          }),
+          ctx.prisma.userSkill.findMany({
+            where: { userId: ctx.userId },
+            include: { skill: true },
+          }),
+        ]);
+
+        const andConditions: any[] = [];
+
+        if (profile) {
+          const locOr: any[] = [];
+          if (profile.remotePreference === "REMOTE") {
+            locOr.push({ remote: true });
+          } else {
+            if (profile.preferredLocations && profile.preferredLocations.length > 0) {
+              for (const loc of profile.preferredLocations) {
+                locOr.push({ location: { contains: loc, mode: "insensitive" } });
+              }
+            }
+            if (profile.remotePreference !== "ONSITE") {
+              locOr.push({ remote: true });
+            }
+          }
+          if (locOr.length > 0) {
+            andConditions.push({ OR: locOr });
+          }
+
+          const roleSkillOr: any[] = [];
+          if (profile.preferredRoles && profile.preferredRoles.length > 0) {
+            for (const r of profile.preferredRoles) {
+              roleSkillOr.push({ title: { contains: r, mode: "insensitive" } });
+            }
+          }
+          if (userSkills.length > 0) {
+            const skillIds = userSkills.map((us) => us.skillId);
+            roleSkillOr.push({
+              jobSkills: { some: { skillId: { in: skillIds } } },
+            });
+            roleSkillOr.push({ matchScore: { gte: 50 } });
+          }
+          if (roleSkillOr.length > 0) {
+            andConditions.push({ OR: roleSkillOr });
+          }
+        }
+
+        if (andConditions.length > 0) {
+          where.AND = where.AND ? [...where.AND, ...andConditions] : andConditions;
+        }
       }
 
       // Determine orderBy
@@ -166,12 +230,14 @@ export const jobsRouter = router({
     }),
 
   // 4. Trigger discovery for authenticated user
-  syncDiscovery: protectedProcedure.mutation(async ({ ctx }) => {
-    checkRateLimit(ctx.userId, "jobs.syncDiscovery", { maxRequests: 5, windowMs: 60_000 });
-    const runId = createRunId();
-    logger.info("jobs.syncDiscovery", "Starting manual discovery sync", { runId, userId: ctx.userId });
+  syncDiscovery: protectedProcedure
+    .input(z.object({ companyIds: z.array(z.string()).optional() }).optional())
+    .mutation(async ({ ctx, input }) => {
+      checkRateLimit(ctx.userId, "jobs.syncDiscovery", { maxRequests: 5, windowMs: 60_000 });
+      const runId = createRunId();
+      logger.info("jobs.syncDiscovery", "Starting discovery sync", { runId, userId: ctx.userId });
 
-    const result = await searchAndSyncJobs(ctx.userId);
+      const result = await searchAndSyncJobs(ctx.userId, { companyIds: input?.companyIds });
 
     logger.info("jobs.syncDiscovery", "Completed manual discovery sync", {
       runId,

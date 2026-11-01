@@ -27,6 +27,12 @@ describe("profileRouter Integration & Guardrails", () => {
         };
         return mockProfile;
       }),
+      update: vi.fn(async ({ where, data }) => {
+        if (mockProfile) {
+          Object.assign(mockProfile, data);
+        }
+        return mockProfile;
+      }),
     },
     userSkill: {
       findMany: vi.fn(async ({ where }) => {
@@ -190,5 +196,41 @@ describe("profileRouter Integration & Guardrails", () => {
 
     // 7. Verify resume file was deleted immediately (AC 2.3, ADR-005)
     expect(deleteSpy).toHaveBeenCalledWith(storagePath);
+  });
+
+  it("adds and removes work experience with area/location", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+
+    const added = await caller.profile.addExperience({
+      company: "Stripe",
+      title: "Staff Software Engineer",
+      location: "San Francisco, CA",
+      start: "2021",
+      end: "Present",
+      highlights: ["Led billing infrastructure team", "Reduced latency by 40%"],
+    });
+
+    expect(added.experienceSummary.length).toBe(1);
+    expect(added.experienceSummary[0].company).toBe("Stripe");
+    expect(added.experienceSummary[0].location).toBe("San Francisco, CA");
+    expect(added.experienceSummary[0].title).toBe("Staff Software Engineer");
+
+    // Add a second experience
+    const addedSecond = await caller.profile.addExperience({
+      company: "GitHub",
+      title: "Senior Backend Engineer",
+      location: "Remote",
+      start: "2018",
+      end: "2021",
+    });
+
+    expect(addedSecond.experienceSummary.length).toBe(2);
+    expect(addedSecond.experienceSummary[0].company).toBe("GitHub");
+    expect(addedSecond.experienceSummary[0].location).toBe("Remote");
+
+    // Remove first experience
+    const removed = await caller.profile.removeExperience({ index: 0 });
+    expect(removed.experienceSummary?.length).toBe(1);
+    expect(removed.experienceSummary?.[0].company).toBe("Stripe");
   });
 });

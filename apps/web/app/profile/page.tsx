@@ -15,6 +15,9 @@ import {
   Briefcase,
   GraduationCap,
   Sparkles,
+  MapPin,
+  Calendar,
+  Building,
 } from "lucide-react";
 
 export default function ProfilePage() {
@@ -34,6 +37,15 @@ export default function ProfilePage() {
   const [showSkillModal, setShowSkillModal] = useState(false);
   const [newSkillName, setNewSkillName] = useState("");
   const [newSkillProficiency, setNewSkillProficiency] = useState("Intermediate");
+
+  // Work experience state
+  const [showExpModal, setShowExpModal] = useState(false);
+  const [expCompany, setExpCompany] = useState("");
+  const [expTitle, setExpTitle] = useState("");
+  const [expLocation, setExpLocation] = useState("");
+  const [expStart, setExpStart] = useState("");
+  const [expEnd, setExpEnd] = useState("");
+  const [expHighlights, setExpHighlights] = useState("");
 
   // Upload & parsing state
   const [uploading, setUploading] = useState(false);
@@ -67,6 +79,25 @@ export default function ProfilePage() {
   });
 
   const removeSkillMutation = trpc.profile.removeSkill.useMutation({
+    onSuccess: () => {
+      utils.profile.get.invalidate();
+    },
+  });
+
+  const addExperienceMutation = trpc.profile.addExperience.useMutation({
+    onSuccess: () => {
+      utils.profile.get.invalidate();
+      setShowExpModal(false);
+      setExpCompany("");
+      setExpTitle("");
+      setExpLocation("");
+      setExpStart("");
+      setExpEnd("");
+      setExpHighlights("");
+    },
+  });
+
+  const removeExperienceMutation = trpc.profile.removeExperience.useMutation({
     onSuccess: () => {
       utils.profile.get.invalidate();
     },
@@ -178,6 +209,17 @@ export default function ProfilePage() {
       acceptedFields: [],
     });
   };
+
+  const experiences = (Array.isArray(data?.profile?.experienceSummary)
+    ? (data.profile.experienceSummary as Array<{
+        company: string;
+        title: string;
+        location?: string | null;
+        start: string;
+        end?: string | null;
+        highlights?: string[];
+      }>)
+    : []);
 
   return (
     <AppShell>
@@ -600,6 +642,99 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
+
+        {/* Work Experience & Areas Section */}
+        <div className="neo-card p-6 bg-paper space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-ink pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-ink" />
+                <h2 className="font-display text-xl uppercase text-ink">
+                  Work Experience & Areas ({experiences.length})
+                </h2>
+              </div>
+              <p className="text-xs font-mono text-ink/70 mt-1">
+                Add your roles, companies, and geographical area to tailor search discovery and matching.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowExpModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-ink text-paper border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Experience</span>
+            </button>
+          </div>
+
+          {isLoading ? (
+            <div className="py-8 text-center text-xs font-mono text-ink/70">
+              Loading work experience...
+            </div>
+          ) : experiences.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {experiences.map((exp, idx) => (
+                <div
+                  key={idx}
+                  className="p-4 bg-paper border-2 border-ink shadow-neo-sm flex flex-col justify-between space-y-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-bold text-sm text-ink">{exp.title}</h3>
+                        <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-ink/80 mt-0.5">
+                          <Building className="w-3.5 h-3.5 text-ink/60" />
+                          <span>{exp.company}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeExperienceMutation.mutate({ index: idx })}
+                        disabled={removeExperienceMutation.isPending}
+                        className="p-1.5 text-ink/40 hover:text-ink hover:bg-blush/20 border border-transparent hover:border-ink transition-none"
+                        title="Remove experience"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+                      {exp.location && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-mint/40 border border-ink font-bold text-[11px]">
+                          <MapPin className="w-3 h-3 text-ink" />
+                          <span>{exp.location}</span>
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-paper border border-ink text-ink/70 text-[11px]">
+                        <Calendar className="w-3 h-3 text-ink/50" />
+                        <span>
+                          {exp.start} — {exp.end || "Present"}
+                        </span>
+                      </span>
+                    </div>
+
+                    {exp.highlights && exp.highlights.length > 0 && (
+                      <ul className="list-disc list-inside text-xs font-sans text-ink/80 space-y-1 pt-1 border-t border-ink/20">
+                        {exp.highlights.map((hl, hIdx) => (
+                          <li key={hIdx} className="leading-relaxed">
+                            {hl}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 border-2 border-dashed border-ink/40 text-center space-y-2">
+              <p className="font-display text-sm uppercase text-ink">
+                No Work Experience Added Yet
+              </p>
+              <p className="text-xs font-mono text-ink/60">
+                Click "+ Add Experience" or upload your resume to automatically populate past roles and locations.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Manual Add Skill Modal (HITL #4) */}
@@ -662,6 +797,137 @@ export default function ProfilePage() {
                 className="px-5 py-2 bg-ink text-paper border-2 border-ink text-xs font-bold shadow-neo neo-shadow-press"
               >
                 {addSkillMutation.isPending ? "Adding..." : "Add Skill"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Experience Modal */}
+      {showExpModal && (
+        <div className="fixed inset-0 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="neo-card p-6 bg-paper max-w-md w-full space-y-4 border-4 border-ink shadow-neo-lg">
+            <div className="flex items-center justify-between border-b-2 border-ink pb-3">
+              <h3 className="font-display text-lg uppercase text-ink">
+                Add Work Experience & Area
+              </h3>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1">
+                  Company Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={expCompany}
+                  onChange={(e) => setExpCompany(e.target.value)}
+                  placeholder="e.g. Acme Corp or Stripe"
+                  className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1">
+                  Job Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={expTitle}
+                  onChange={(e) => setExpTitle(e.target.value)}
+                  placeholder="e.g. Senior Software Engineer"
+                  className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1">
+                  Area / Location (City, State, or Country)
+                </label>
+                <input
+                  type="text"
+                  value={expLocation}
+                  onChange={(e) => setExpLocation(e.target.value)}
+                  placeholder="e.g. San Francisco, CA or Remote"
+                  className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1">
+                    Start Period <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={expStart}
+                    onChange={(e) => setExpStart(e.target.value)}
+                    placeholder="e.g. 2021 or Jan 2021"
+                    className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1">
+                    End Period (or Present)
+                  </label>
+                  <input
+                    type="text"
+                    value={expEnd}
+                    onChange={(e) => setExpEnd(e.target.value)}
+                    placeholder="e.g. Present or 2024"
+                    className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1">
+                  Key Highlights / Responsibilities (comma or newline separated)
+                </label>
+                <textarea
+                  rows={3}
+                  value={expHighlights}
+                  onChange={(e) => setExpHighlights(e.target.value)}
+                  placeholder="e.g. Built real-time matching engine&#10;Scaled backend services to 10M daily requests"
+                  className="w-full px-3 py-2 border-2 border-ink text-xs font-sans focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t-2 border-ink">
+              <button
+                onClick={() => setShowExpModal(false)}
+                className="px-4 py-2 border-2 border-ink text-xs font-bold shadow-neo-sm neo-shadow-press"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (expCompany.trim() && expTitle.trim() && expStart.trim()) {
+                    const parsedHighlights = expHighlights
+                      .split(/[\n,]/)
+                      .map((h) => h.trim())
+                      .filter(Boolean);
+
+                    addExperienceMutation.mutate({
+                      company: expCompany.trim(),
+                      title: expTitle.trim(),
+                      location: expLocation.trim() || undefined,
+                      start: expStart.trim(),
+                      end: expEnd.trim() || undefined,
+                      highlights: parsedHighlights.length > 0 ? parsedHighlights : undefined,
+                    });
+                  }
+                }}
+                disabled={
+                  !expCompany.trim() ||
+                  !expTitle.trim() ||
+                  !expStart.trim() ||
+                  addExperienceMutation.isPending
+                }
+                className="px-5 py-2 bg-ink text-paper border-2 border-ink text-xs font-bold shadow-neo neo-shadow-press disabled:opacity-50"
+              >
+                {addExperienceMutation.isPending ? "Saving..." : "Add Experience"}
               </button>
             </div>
           </div>

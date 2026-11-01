@@ -47,7 +47,8 @@ export const JobFiltersSchema = z.object({
   minSalary: z.number().optional(),
   status: ApplicationStatusEnum.optional(),
   minMatchScore: z.number().min(0).max(100).optional(),
-  remote: z.boolean().optional()
+  remote: z.boolean().optional(),
+  onlyMatching: z.boolean().optional()
 });
 export type JobFilters = z.infer<typeof JobFiltersSchema>;
 

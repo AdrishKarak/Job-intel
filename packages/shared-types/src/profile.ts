@@ -9,6 +9,7 @@ export type SkillSource = z.infer<typeof SkillSourceEnum>;
 export const ExperienceItemSchema = z.object({
   company: z.string(),
   title: z.string(),
+  location: z.string().nullable().optional(),
   start: z.string(),
   end: z.string().nullable().optional(),
   highlights: z.array(z.string()).default([])

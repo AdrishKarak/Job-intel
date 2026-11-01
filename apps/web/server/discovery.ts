@@ -17,17 +17,107 @@ export interface DiscoverySyncResult {
   companiesFailed: { companyId: string; companyName: string; reason: string }[];
 }
 
+/**
+ * Filters out jobs from company boards that do not match the candidate's preferred
+ * locations/remote, or are completely unrelated to their target roles and skills.
+ */
+function isJobMatchingPreferences(
+  job: NormalizedJob,
+  profile: {
+    preferredLocations: string[];
+    preferredRoles: string[];
+    remotePreference: string;
+  } | null,
+  userSkillNames: string[]
+): boolean {
+  if (!profile) return true;
+
+  // 1. Check Location & Remote Preferences
+  const hasLocPrefs = profile.preferredLocations.length > 0;
+  const isRemoteOnly = profile.remotePreference === "REMOTE";
+  const isOnsiteOnly = profile.remotePreference === "ONSITE";
+  const jobLoc = (job.location || "").toLowerCase();
+  const isJobRemote = Boolean(
+    job.remote ||
+    jobLoc.includes("remote") ||
+    jobLoc.includes("anywhere") ||
+    jobLoc.includes("work from home") ||
+    jobLoc.includes("distributed")
+  );
+
+  let locationMatches = true;
+  if (isRemoteOnly) {
+    locationMatches = isJobRemote;
+  } else if (hasLocPrefs) {
+    const inPreferredArea = profile.preferredLocations.some((loc) => {
+      const cleanLoc = loc.toLowerCase().trim();
+      return cleanLoc.length > 0 && jobLoc.includes(cleanLoc);
+    });
+    // Remote positions are allowed unless candidate explicitly set ONSITE
+    locationMatches = inPreferredArea || (!isOnsiteOnly && isJobRemote);
+  }
+
+  if (!locationMatches) {
+    return false;
+  }
+
+  // 2. Check Roles & Skills Relevance
+  const hasRolePrefs = profile.preferredRoles.length > 0;
+  const hasSkills = userSkillNames.length > 0;
+
+  if (!hasRolePrefs && !hasSkills) {
+    return true; // No specific role/skills defined, location check passes
+  }
+
+  // Check role title match
+  let roleMatches = false;
+  if (hasRolePrefs) {
+    const jobTitle = job.title.toLowerCase();
+    roleMatches = profile.preferredRoles.some((prefRole) => {
+      const target = prefRole.toLowerCase().trim();
+      if (!target) return false;
+      if (jobTitle.includes(target)) return true;
+      const tokens = target.split(/\s+/).filter((t) => t.length > 3);
+      return tokens.length > 0 && tokens.every((t) => jobTitle.includes(t));
+    });
+  }
+
+  // Check technical skill overlap
+  let skillMatches = false;
+  if (hasSkills && job.skills && job.skills.length > 0) {
+    skillMatches = job.skills.some((js) => userSkillNames.includes(js.toLowerCase()));
+  }
+
+  return roleMatches || skillMatches;
+}
+
 export async function searchAndSyncJobs(
   userId: string,
   options?: { companyIds?: string[]; limitPerCompany?: number }
 ): Promise<DiscoverySyncResult> {
-  const companies = await prisma.company.findMany({
-    where: {
-      active: true,
-      ...(options?.companyIds ? { id: { in: options.companyIds } } : {}),
-    },
-    take: options?.companyIds ? undefined : 25,
-  });
+  const [companies, profile, userSkills] = await Promise.all([
+    prisma.company.findMany({
+      where: {
+        active: true,
+        ...(options?.companyIds ? { id: { in: options.companyIds } } : {}),
+      },
+      take: options?.companyIds ? undefined : 25,
+    }),
+    prisma.candidateProfile.findUnique({
+      where: { userId },
+      select: {
+        preferredLocations: true,
+        preferredRoles: true,
+        remotePreference: true,
+      },
+    }),
+    prisma.userSkill.findMany({
+      where: { userId },
+      include: { skill: true },
+    }),
+  ]);
+
+  const userSkillNames = userSkills.map((us) => us.skill.name.toLowerCase());
 
   let newJobsCount = 0;
   let updatedJobsCount = 0;
@@ -90,6 +180,11 @@ export async function searchAndSyncJobs(
     const expiresAt = new Date(now.getTime() + 40 * 24 * 60 * 60 * 1000); // 40-day retention (ADR-009)
 
     for (const rawJob of normalizedJobs) {
+      // Filter out jobs that do not match candidate's location, remote, role, or skills
+      if (!isJobMatchingPreferences(rawJob, profile, userSkillNames)) {
+        continue;
+      }
+
       try {
         const existing = await prisma.job.findUnique({
           where: {

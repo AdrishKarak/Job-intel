@@ -23,12 +23,14 @@ export default function JobsPage() {
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [remoteOnly, setRemoteOnly] = useState(false);
+  const [onlyMatching, setOnlyMatching] = useState(true);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const filters = {
     role: search.trim() || undefined,
     status: selectedStatus === "ALL" ? undefined : (selectedStatus as ApplicationStatus),
     remote: remoteOnly ? true : undefined,
+    onlyMatching: onlyMatching,
   };
 
   const { data, isLoading, refetch } = trpc.jobs.list.useQuery({
@@ -168,6 +170,19 @@ export default function JobsPage() {
               className="w-4 h-4 accent-ink border-2 border-ink"
             />
             <span>Remote Only</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold uppercase text-ink px-2.5 py-1 bg-mint/30 border border-ink shadow-neo-sm">
+            <input
+              type="checkbox"
+              checked={onlyMatching}
+              onChange={(e) => setOnlyMatching(e.target.checked)}
+              className="w-4 h-4 accent-ink border-2 border-ink"
+            />
+            <span className="flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-ink" />
+              <span>Match My Locations & Skills</span>
+            </span>
           </label>
         </div>
 

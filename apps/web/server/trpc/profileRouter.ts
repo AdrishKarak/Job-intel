@@ -136,6 +136,79 @@ export const profileRouter = router({
       return { success: true };
     }),
 
+  // 4b. Add work experience item with company, title, and area/location
+  addExperience: protectedProcedure
+    .input(
+      z.object({
+        company: z.string().min(1, "Company is required"),
+        title: z.string().min(1, "Job title is required"),
+        location: z.string().optional(), // Area / Location
+        start: z.string().min(1, "Start period is required"),
+        end: z.string().optional(),
+        highlights: z.array(z.string()).default([]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      checkRateLimit(ctx.userId, "profile.addExperience", { maxRequests: 20, windowMs: 60_000 });
+      const currentProfile = await ctx.prisma.candidateProfile.findUnique({
+        where: { userId: ctx.userId },
+      });
+
+      const currentList = Array.isArray(currentProfile?.experienceSummary)
+        ? (currentProfile.experienceSummary as any[])
+        : [];
+
+      const newItem = {
+        company: input.company.trim(),
+        title: input.title.trim(),
+        location: input.location?.trim() || null,
+        start: input.start.trim(),
+        end: input.end?.trim() || null,
+        highlights: input.highlights,
+      };
+
+      const updatedList = [newItem, ...currentList];
+
+      await ctx.prisma.candidateProfile.upsert({
+        where: { userId: ctx.userId },
+        update: {
+          experienceSummary: updatedList,
+        },
+        create: {
+          userId: ctx.userId,
+          experienceSummary: updatedList,
+          preferredRoles: [],
+          preferredLocations: [],
+        },
+      });
+
+      return { success: true, experienceSummary: updatedList };
+    }),
+
+  // 4c. Remove work experience item
+  removeExperience: protectedProcedure
+    .input(z.object({ index: z.number().min(0) }))
+    .mutation(async ({ ctx, input }) => {
+      const currentProfile = await ctx.prisma.candidateProfile.findUnique({
+        where: { userId: ctx.userId },
+      });
+
+      if (!currentProfile || !Array.isArray(currentProfile.experienceSummary)) {
+        return { success: true };
+      }
+
+      const list = [...(currentProfile.experienceSummary as any[])];
+      if (input.index >= 0 && input.index < list.length) {
+        list.splice(input.index, 1);
+        await ctx.prisma.candidateProfile.update({
+          where: { userId: ctx.userId },
+          data: { experienceSummary: list },
+        });
+      }
+
+      return { success: true, experienceSummary: list };
+    }),
+
   // 5. Create resume upload URL
   createResumeUploadUrl: protectedProcedure
     .input(
