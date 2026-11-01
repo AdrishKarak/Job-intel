@@ -15,6 +15,7 @@ import {
   ChevronRight,
   MapPin,
   Building,
+  Download,
 } from "lucide-react";
 
 export default function JobsPage() {
@@ -55,6 +56,26 @@ export default function JobsPage() {
     },
   });
 
+  const exportExcelMutation = trpc.reports.exportExcel.useMutation({
+    onSuccess: (res) => {
+      const byteCharacters = atob(res.data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: res.mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    },
+  });
+
   return (
     <AppShell>
       <div className="space-y-8">
@@ -69,6 +90,14 @@ export default function JobsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => exportExcelMutation.mutate()}
+              disabled={exportExcelMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 bg-paper border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press"
+            >
+              <Download className={`w-3.5 h-3.5 ${exportExcelMutation.isPending ? "animate-bounce" : ""}`} />
+              <span>{exportExcelMutation.isPending ? "Exporting..." : "Export Excel"}</span>
+            </button>
             <button
               onClick={() => scoreAllMutation.mutate({})}
               disabled={scoreAllMutation.isPending}

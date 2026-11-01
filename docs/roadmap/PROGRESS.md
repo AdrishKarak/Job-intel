@@ -50,10 +50,32 @@ Per ADR-012, through Phase 8 the system operates as a single application (`apps/
 - **Step 4.1**: Built matching engine with `@repo/ai-clients` (embeddings generator, cosine similarity, Gemini, Groq), `server/matching.ts` (rule-based scoring: 50% skill fit, 20% role fit, 15% location fit, 15% salary fit, plus 30% semantic embedding refinement), grounded explanation generator, `scoreAll` tRPC mutation, score breakdown UI in `JobDetailPanel.tsx` and `JobsPage`, and CLI runner `score-jobs.ts`. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 25 tests pass), `pnpm --filter @repo/db score-jobs` (all 25 database jobs scored), `pnpm --filter web build` (successful Next.js production build). Result: PASS.
 - **Step 5.1**: Built `dashboardRouter` with `getSummary` procedure, real-time stat cards, match score distribution bars, 10-stage pipeline status grid, top skill gap intelligence widget, and chronological recent activity feed. Created test suite in `dashboardRouter.test.ts` and enhanced `apps/web/app/page.tsx`. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 29 tests pass), `pnpm --filter web build` (successful Next.js production build). Result: PASS.
 - **Step 6.1**: Implemented `server/skillGaps.ts` (`computeSkillGapsForUser`, `getSkillGapsForUser`), enhanced `server/matching.ts` with `generateAIExplanation` and automated skill gap recommendation persistence into `SkillGapRecommendation` table, added `refreshSkillGaps` procedure, and verified unit tests. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 30 tests pass), `pnpm --filter @repo/db score-jobs` (all 25 database jobs scored with grounded explanations and recommendations). Result: PASS.
+- **Step 7.1**: Built Excel spreadsheet generator (`server/excel.ts` with `xlsx`), Brevo SMTP email transport (`server/email.ts` with HTML/plain-text templates complying with AC 25.1 & AC 25.2), daily report generator (`server/reporting.ts`), Inngest 7 PM daily cron and periodic sync functions (`server/inngest/`), Next.js `/api/inngest` webhook route, `reportsRouter` with on-demand report generation and base64 Excel export, and added an Export to Excel button in the CRM UI. Checks: `pnpm typecheck`, `pnpm test` (all 43 tests pass), live database report generation & SMTP dispatch (`generateDailyReport` dispatched live email via Brevo SMTP with official ID), `pnpm --filter web build` (successful production build). Result: PASS.
 
 ---
 
 ## Phase Reports
+
+### Phase 7 Report: Reporting + Email Delivery
+- **What was built:**
+  - `apps/web/server/excel.ts`: generates formatted `.xlsx` spreadsheet buffer containing candidate's tracked jobs (Title, Company, Location, Remote, Compensation, Match Score, Status, Application URL, Discovered Date) strictly scoped by `userId`.
+  - `apps/web/server/email.ts`: Nodemailer email transporter configured with Brevo SMTP (`smtp-relay.brevo.com:587`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`), supporting both active highlight notifications (AC 25.1) and graceful "nothing new" positive updates (AC 25.2), complete with neobrutalist HTML layout.
+  - `apps/web/server/reporting.ts`: aggregates 24h discovery counts, top 5 best matches, in-demand skill gaps, and status transitions, persists `Report` record in Neon Postgres, and dispatches email (guaranteeing in-app persistence even if email fails per AC 25.3).
+  - `apps/web/server/inngest/`: Inngest client and background functions:
+    - `dailyReportCron`: scheduled daily trigger at 7:00 PM UTC (`cron: "0 19 * * *"`) for all active candidates.
+    - `syncDiscoveryCron`: periodic ATS polling & scoring trigger every 6 hours (`cron: "0 */6 * * *"`).
+  - `apps/web/app/api/inngest/route.ts`: Next.js 15 Route Handler serving Inngest functions.
+  - `apps/web/server/trpc/reportsRouter.ts`: procedures for listing reports (`list`), on-demand report generation (`generateNow`), and binary Excel download (`exportExcel`).
+  - CRM UI integration: added "Export Excel" action button in `apps/web/app/jobs/page.tsx` for one-click spreadsheet download.
+  - Test suite in `apps/web/server/reporting.test.ts` verifying XLSX buffer magic bytes, email generation, AC 25.2 fallback, and per-user report isolation.
+- **Exit Criteria Check:**
+  - User gets a daily email summary automatically: CONFIRMED (Inngest 7 PM cron wired; live test generated report and dispatched email via Brevo SMTP).
+  - Excel export generated accurately: CONFIRMED (27KB valid XLSX buffer generated).
+  - AC 25.1, 25.2, 25.3 verified: CONFIRMED.
+  - All tests green (43/43), typecheck green, Next.js build green: CONFIRMED.
+- **Deviations and New ADRs:** None.
+- **Open Questions:** None.
+- **Next:** Phase 8 — Scale Out Job Discovery (Ashby, Workday, SmartRecruiters, Workable connectors, Firecrawl connector for Wellfound & career sites, expanding registry toward 100+).
 
 ### Phase 6 Report: AI Explanations & Skill Gap Recommendations
 - **What was built:**
