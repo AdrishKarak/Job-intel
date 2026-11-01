@@ -44,3 +44,206 @@ body {
     border-radius: var(--radius);
   }
 }
+
+/* ==========================================================================
+   Clerk Neobrutalism Component Overrides
+   ========================================================================== */
+
+.cl-rootBox {
+  width: 100% !important;
+}
+
+.cl-cardBox {
+  width: 100% !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.cl-card {
+  width: 100% !important;
+  background-color: var(--paper) !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: var(--radius) !important;
+  padding: 0 !important;
+}
+
+.cl-header {
+  margin-bottom: 1.5rem !important;
+}
+
+.cl-headerTitle {
+  font-family: var(--font-archivo-black), sans-serif !important;
+  text-transform: uppercase !important;
+  color: var(--ink) !important;
+  letter-spacing: -0.02em !important;
+  font-size: 1.5rem !important;
+}
+
+.cl-headerSubtitle {
+  font-family: var(--font-ibm-plex-mono), monospace !important;
+  color: rgba(20, 20, 20, 0.7) !important;
+  font-size: 0.75rem !important;
+  margin-top: 0.25rem !important;
+}
+
+.cl-formFieldLabel {
+  font-family: var(--font-ibm-plex-mono), monospace !important;
+  text-transform: uppercase !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  color: var(--ink) !important;
+  letter-spacing: 0.05em !important;
+  margin-bottom: 0.35rem !important;
+}
+
+.cl-formFieldInput {
+  border: 2px solid var(--ink) !important;
+  border-radius: var(--radius) !important;
+  background-color: var(--paper) !important;
+  color: var(--ink) !important;
+  font-family: var(--font-ibm-plex-mono), monospace !important;
+  font-size: 0.875rem !important;
+  padding: 0.65rem 0.85rem !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+.cl-formFieldInput:focus {
+  border-color: var(--ink) !important;
+  box-shadow: 2px 2px 0px var(--ink) !important;
+  outline: none !important;
+}
+
+.cl-formButtonPrimary {
+  border: 2px solid var(--ink) !important;
+  border-radius: var(--radius) !important;
+  background-color: var(--ink) !important;
+  color: var(--paper) !important;
+  box-shadow: 4px 4px 0px var(--ink) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  font-size: 0.875rem !important;
+  padding: 0.75rem 1rem !important;
+  transition: none !important;
+}
+
+.cl-formButtonPrimary:hover {
+  background-color: #262626 !important;
+}
+
+.cl-formButtonPrimary:active {
+  box-shadow: 0 0 0 var(--ink) !important;
+  transform: translate(4px, 4px) !important;
+}
+
+.cl-socialButtonsBlockButton {
+  border: 2px solid var(--ink) !important;
+  border-radius: var(--radius) !important;
+  background-color: var(--paper) !important;
+  color: var(--ink) !important;
+  box-shadow: 2px 2px 0px var(--ink) !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.025em !important;
+  transition: none !important;
+  margin-bottom: 0.5rem !important;
+  padding: 0.6rem !important;
+}
+
+.cl-socialButtonsBlockButton:hover {
+  background-color: #f5f5f5 !important;
+}
+
+.cl-socialButtonsBlockButton:active {
+  box-shadow: 0 0 0 var(--ink) !important;
+  transform: translate(2px, 2px) !important;
+}
+
+.cl-socialButtonsBlockButtonText {
+  color: var(--ink) !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+}
+
+.cl-dividerLine {
+  background-color: var(--ink) !important;
+  height: 2px !important;
+}
+
+.cl-dividerText {
+  font-family: var(--font-ibm-plex-mono), monospace !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  color: var(--ink) !important;
+  font-weight: 700 !important;
+  background-color: var(--paper) !important;
+  padding: 0 0.5rem !important;
+}
+
+.cl-footerAction {
+  border-top: 2px solid var(--ink) !important;
+  padding-top: 1rem !important;
+  margin-top: 1.5rem !important;
+}
+
+.cl-footerActionText {
+  font-family: var(--font-ibm-plex-mono), monospace !important;
+  font-size: 0.75rem !important;
+  color: rgba(20, 20, 20, 0.7) !important;
+}
+
+.cl-footerActionLink {
+  color: var(--ink) !important;
+  font-weight: 700 !important;
+  text-decoration: underline !important;
+}
+
+.cl-footerActionLink:hover {
+  color: #333333 !important;
+}
+
+.cl-identityPreview {
+  border: 2px solid var(--ink) !important;
+  border-radius: var(--radius) !important;
+  background-color: var(--paper) !important;
+  box-shadow: 2px 2px 0px var(--ink) !important;
+}
+
+.cl-identityPreviewText {
+  font-family: var(--font-ibm-plex-mono), monospace !important;
+  color: var(--ink) !important;
+}
+
+.cl-identityPreviewEditButton {
+  color: var(--ink) !important;
+  font-weight: 700 !important;
+}
+
+.cl-userButtonPopoverCard {
+  border: 2px solid var(--ink) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 4px 4px 0px var(--ink) !important;
+  background-color: var(--paper) !important;
+}
+
+.cl-userButtonAvatarBox {
+  border-radius: var(--radius) !important;
+  border: 2px solid var(--ink) !important;
+}
+
+.cl-userButtonPopoverActionButton {
+  border-radius: var(--radius) !important;
+  font-weight: 700 !important;
+  color: var(--ink) !important;
+}
+
+.cl-userButtonPopoverActionButton:hover {
+  background-color: #f5f5f5 !important;
+}
+
+.cl-userButtonPopoverFooter {
+  border-top: 2px solid var(--ink) !important;
+}

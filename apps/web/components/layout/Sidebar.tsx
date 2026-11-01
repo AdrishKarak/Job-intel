@@ -78,12 +78,28 @@ export function Sidebar() {
       <div className="pt-6 border-t-2 border-ink">
         <div className="flex items-center justify-between p-3 bg-paper border-2 border-ink shadow-neo-sm">
           <div className="flex items-center gap-3 min-w-0">
-            <UserButton afterSignOutUrl="/sign-in" />
-            <div className="min-w-0">
+            <UserButton
+              afterSignOutUrl="/sign-in"
+              appearance={{
+                elements: {
+                  userButtonAvatarBox: "w-8 h-8 rounded-none border-2 border-ink shadow-neo-sm",
+                  userButtonPopoverCard: "border-2 border-ink shadow-neo rounded-none bg-paper",
+                  userButtonPopoverActionButton: "hover:bg-neutral-100 rounded-none font-bold text-xs text-ink",
+                  userButtonPopoverActionButtonText: "text-ink font-bold",
+                  userButtonPopoverFooter: "border-t-2 border-ink",
+                },
+              }}
+            />
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-ink truncate">
                 {user?.fullName || user?.primaryEmailAddress?.emailAddress || "Candidate"}
               </p>
-              <p className="text-[10px] font-mono text-ink/60 truncate">Active Plan</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-mint border border-ink" />
+                <p className="text-[10px] font-mono font-medium text-ink/70 truncate">
+                  Active Session
+                </p>
+              </div>
             </div>
           </div>
         </div>
