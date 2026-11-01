@@ -51,10 +51,30 @@ Per ADR-012, through Phase 8 the system operates as a single application (`apps/
 - **Step 5.1**: Built `dashboardRouter` with `getSummary` procedure, real-time stat cards, match score distribution bars, 10-stage pipeline status grid, top skill gap intelligence widget, and chronological recent activity feed. Created test suite in `dashboardRouter.test.ts` and enhanced `apps/web/app/page.tsx`. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 29 tests pass), `pnpm --filter web build` (successful Next.js production build). Result: PASS.
 - **Step 6.1**: Implemented `server/skillGaps.ts` (`computeSkillGapsForUser`, `getSkillGapsForUser`), enhanced `server/matching.ts` with `generateAIExplanation` and automated skill gap recommendation persistence into `SkillGapRecommendation` table, added `refreshSkillGaps` procedure, and verified unit tests. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 30 tests pass), `pnpm --filter @repo/db score-jobs` (all 25 database jobs scored with grounded explanations and recommendations). Result: PASS.
 - **Step 7.1**: Built Excel spreadsheet generator (`server/excel.ts` with `xlsx`), Brevo SMTP email transport (`server/email.ts` with HTML/plain-text templates complying with AC 25.1 & AC 25.2), daily report generator (`server/reporting.ts`), Inngest 7 PM daily cron and periodic sync functions (`server/inngest/`), Next.js `/api/inngest` webhook route, `reportsRouter` with on-demand report generation and base64 Excel export, and added an Export to Excel button in the CRM UI. Checks: `pnpm typecheck`, `pnpm test` (all 43 tests pass), live database report generation & SMTP dispatch (`generateDailyReport` dispatched live email via Brevo SMTP with official ID), `pnpm --filter web build` (successful production build). Result: PASS.
+- **Step 8.1**: Implemented Ashby, SmartRecruiters, Workable, Workday, and Firecrawl connectors in `@repo/ats-connectors`, wired dispatch in `apps/web/server/discovery.ts`, expanded `Company` registry in `packages/db/seed.ts` to 102 companies and seeded into database, and created connector unit test suite. Checks: `pnpm typecheck`, `pnpm test` (all 48 tests pass), `pnpm db:seed` (all 102 companies seeded), `pnpm --filter web build` (successful production build). Result: PASS.
 
 ---
 
 ## Phase Reports
+
+### Phase 8 Report: Scale Out Job Discovery
+- **What was built:**
+  - Expanded `@repo/ats-connectors` with 5 new production connectors:
+    - `ashby.ts`: connects to Ashby public job boards (`https://api.ashbyhq.com/posting-api/job-board/`), maps compensation, remote flags, and extracts technical skill tags.
+    - `smartrecruiters.ts`: connects to SmartRecruiters public posting endpoints (`https://api.smartrecruiters.com/v1/companies/`), parses department, multi-part geographic locations, and remote status.
+    - `workable.ts`: connects to Workable accounts API (`https://apply.workable.com/api/v3/accounts/`), maps shortcodes, telecommuting flags, and formatted descriptions.
+    - `workday.ts`: connects to Workday CXS REST APIs (`https://${tenant}.wd1.myworkdayjobs.com/wday/cxs/`), parses location text, external path URLs, and role titles.
+    - `firecrawl.ts`: connects to Firecrawl API (`https://api.firecrawl.dev/v1/scrape`) with graceful HTTP fallback for Wellfound and custom company talent portals.
+  - `apps/web/server/discovery.ts`: updated discovery engine with a complete `switch` dispatching across all `AtsType` values.
+  - `packages/db/seed.ts`: expanded registry from 25 to 102 premier tech employers (35 Greenhouse, 20 Lever, 21 Ashby, 7 SmartRecruiters, 8 Workable, 7 Workday, 4 Firecrawl portals) and seeded live to Neon PostgreSQL via `pnpm db:seed`.
+  - `packages/ats-connectors/src/connectors.test.ts`: test suite verifying all 5 new connector normalizers against sample ATS payloads.
+- **Exit Criteria Check:**
+  - Broad coverage across ATS types and non-ATS sources: CONFIRMED (Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Workday, Firecrawl/Wellfound).
+  - Company registry grown to 100+: CONFIRMED (102 active companies seeded in database).
+  - All unit/integration tests (48/48), typecheck, and Next.js production build green: CONFIRMED.
+- **Deviations and New ADRs:** None.
+- **Open Questions:** None.
+- **Next:** Phase 11 — Single-App Production Hardening (Per Kickoff Section 8: skip Phase 9/10 per ADR-012; implement structured JSON logging with `runId`, comprehensive Zod boundary validation audit, security audit against `SECURITY_REQUIREMENTS.md`, rate limiting guards, and daily health-summary email).
 
 ### Phase 7 Report: Reporting + Email Delivery
 - **What was built:**

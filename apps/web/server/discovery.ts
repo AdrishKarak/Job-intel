@@ -2,6 +2,11 @@ import { prisma } from "@repo/db";
 import {
   fetchGreenhouseJobs,
   fetchLeverJobs,
+  fetchAshbyJobs,
+  fetchSmartRecruitersJobs,
+  fetchWorkableJobs,
+  fetchWorkdayJobs,
+  scrapeJobsWithFirecrawl,
 } from "@repo/ats-connectors";
 import type { NormalizedJob } from "@repo/shared-types";
 
@@ -36,16 +41,36 @@ export async function searchAndSyncJobs(
     let normalizedJobs: NormalizedJob[] = [];
 
     try {
-      if (company.atsType === "GREENHOUSE") {
-        normalizedJobs = await fetchGreenhouseJobs(
-          company.atsIdentifier,
-          company.name
-        );
-      } else if (company.atsType === "LEVER") {
-        normalizedJobs = await fetchLeverJobs(
-          company.atsIdentifier,
-          company.name
-        );
+      switch (company.atsType) {
+        case "GREENHOUSE":
+          normalizedJobs = await fetchGreenhouseJobs(company.atsIdentifier, company.name);
+          break;
+        case "LEVER":
+          normalizedJobs = await fetchLeverJobs(company.atsIdentifier, company.name);
+          break;
+        case "ASHBY":
+          normalizedJobs = await fetchAshbyJobs(company.atsIdentifier, company.name);
+          break;
+        case "SMARTRECRUITERS":
+          normalizedJobs = await fetchSmartRecruitersJobs(company.atsIdentifier, company.name);
+          break;
+        case "WORKABLE":
+          normalizedJobs = await fetchWorkableJobs(company.atsIdentifier, company.name);
+          break;
+        case "WORKDAY":
+          normalizedJobs = await fetchWorkdayJobs(company.atsIdentifier, company.name);
+          break;
+        case "WELLFOUND":
+        case "CUSTOM_FIRECRAWL":
+        case "CUSTOM_PUPPETEER":
+          normalizedJobs = await scrapeJobsWithFirecrawl(
+            company.careerPageUrl || `https://${company.atsIdentifier}`,
+            company.name
+          );
+          break;
+        default:
+          console.warn(`Unsupported ATS type ${company.atsType} for company ${company.name}`);
+          break;
       }
     } catch (err: any) {
       console.warn(`Discovery failed for ${company.name}:`, err.message);
