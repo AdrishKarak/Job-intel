@@ -1,5 +1,6 @@
 import { router, protectedProcedure } from "./trpc";
 import type { ApplicationStatus } from "@repo/shared-types";
+import { computeSkillGapsForUser, getSkillGapsForUser } from "@/server/skillGaps";
 
 export const dashboardRouter = router({
   getSummary: protectedProcedure.query(async ({ ctx }) => {
@@ -150,6 +151,8 @@ export const dashboardRouter = router({
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 10);
 
+    const persistedRecommendations = await getSkillGapsForUser(userId, ctx.prisma);
+
     return {
       stats: {
         jobsFoundToday,
@@ -162,7 +165,17 @@ export const dashboardRouter = router({
       scoreDistribution,
       statusCounts,
       topSkillGaps,
+      recommendations: persistedRecommendations,
       recentActivity: activityList,
+    };
+  }),
+
+  // Re-compute and update SkillGapRecommendation records (AC 19.1)
+  refreshSkillGaps: protectedProcedure.mutation(async ({ ctx }) => {
+    const updated = await computeSkillGapsForUser(ctx.userId, ctx.prisma);
+    return {
+      count: updated.length,
+      recommendations: updated,
     };
   }),
 });

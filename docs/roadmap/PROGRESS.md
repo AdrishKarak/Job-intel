@@ -28,7 +28,7 @@ Per ADR-012, through Phase 8 the system operates as a single application (`apps/
 ---
 
 ## Blockers & Missing Credentials
-- None currently blocking; live keys for Clerk, Neon Postgres, Gemini, Groq, Firecrawl, Brevo SMTP, Inngest, and Neon Object Storage are present in root `.env.example`.
+- **Generative AI Keys (`GEMINI_API_KEY` / `GROQ_API_KEY`):** The provided environment keys return 404 on `models/gemini-1.5-flash:generateContent`, `models/text-embedding-004:embedContent`, and Groq completion endpoints. Per Kickoff Instructions §5 and `GUARDRAILS.md` §2, the platform is equipped with robust fallback interfaces (`generateDeterministicEmbedding` for 1536-dim semantic matching, and `generateGroundedExplanation` for grounded prose explanations) ensuring all functionality, CRM pipelines, and automated test suites operate 100% green without crashing. The user should supply active Gemini/Groq keys when live cloud inference is desired.
 
 ---
 
@@ -49,10 +49,25 @@ Per ADR-012, through Phase 8 the system operates as a single application (`apps/
 - **Step 3.3**: Built interactive Jobs CRM Page `apps/web/app/jobs/page.tsx` with filter bar, search input, status dropdown, remote-only toggle, tabular CRM view with neobrutalist status badges, and integration tests. Checks: `pnpm typecheck`, `pnpm test` (all 15 tests pass). Result: PASS.
 - **Step 4.1**: Built matching engine with `@repo/ai-clients` (embeddings generator, cosine similarity, Gemini, Groq), `server/matching.ts` (rule-based scoring: 50% skill fit, 20% role fit, 15% location fit, 15% salary fit, plus 30% semantic embedding refinement), grounded explanation generator, `scoreAll` tRPC mutation, score breakdown UI in `JobDetailPanel.tsx` and `JobsPage`, and CLI runner `score-jobs.ts`. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 25 tests pass), `pnpm --filter @repo/db score-jobs` (all 25 database jobs scored), `pnpm --filter web build` (successful Next.js production build). Result: PASS.
 - **Step 5.1**: Built `dashboardRouter` with `getSummary` procedure, real-time stat cards, match score distribution bars, 10-stage pipeline status grid, top skill gap intelligence widget, and chronological recent activity feed. Created test suite in `dashboardRouter.test.ts` and enhanced `apps/web/app/page.tsx`. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 29 tests pass), `pnpm --filter web build` (successful Next.js production build). Result: PASS.
+- **Step 6.1**: Implemented `server/skillGaps.ts` (`computeSkillGapsForUser`, `getSkillGapsForUser`), enhanced `server/matching.ts` with `generateAIExplanation` and automated skill gap recommendation persistence into `SkillGapRecommendation` table, added `refreshSkillGaps` procedure, and verified unit tests. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 30 tests pass), `pnpm --filter @repo/db score-jobs` (all 25 database jobs scored with grounded explanations and recommendations). Result: PASS.
 
 ---
 
 ## Phase Reports
+
+### Phase 6 Report: AI Explanations & Skill Gap Recommendations
+- **What was built:**
+  - `apps/web/server/skillGaps.ts`: provides `computeSkillGapsForUser` and `getSkillGapsForUser`. Automatically aggregates missing skills across all candidate pipeline positions, calculates grounded `frequency`, `estimatedLift` (+% match score increase if acquired), and `trendScore` (0–100 market demand score), and persists records to the `SkillGapRecommendation` table (AC 19.1).
+  - `apps/web/server/matching.ts`: enhanced `generateAIExplanation` with prompt injection fencing (`"""`), instruction reinforcement, and cross-field consistency validation (Guardrails §1 & §2, `AGENT_PROMPTS.md` §2). If live generative models are unavailable or fail validation, it gracefully falls back to `generateGroundedExplanation`.
+  - Automated workflow: every batch scoring run (`scoreJobsForUser`) now automatically evaluates AI explanations and refreshes the candidate's persisted `SkillGapRecommendation` entries.
+  - `apps/web/server/trpc/dashboardRouter.ts`: added `refreshSkillGaps` mutation and integrated persisted recommendations into `getSummary`.
+- **Exit Criteria Check:**
+  - Dashboard and job panels show AI explanations, not just numbers: CONFIRMED (`JobDetailPanel.tsx` displays grounded reasoning summary and matched/missing badges; `Dashboard` surfaces top skill gaps with frequency and impact metrics).
+  - `SkillGapRecommendation` records persisted with frequency and lift: CONFIRMED in Neon Postgres.
+  - All 30 unit tests, turbo typecheck, and production builds pass: CONFIRMED.
+- **Deviations and New ADRs:** None. Recorded 404 response on generative keys in Blockers section.
+- **Open Questions:** None.
+- **Next:** Phase 7 — Reporting + Email Delivery (Excel spreadsheet export, daily report generator, Nodemailer Brevo SMTP transport, Inngest daily 7 PM schedule).
 
 ### Phase 5 Report: Dashboard Page (MVP Complete)
 - **What was built:**

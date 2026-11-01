@@ -8,6 +8,7 @@ describe("dashboardRouter Integration & User Isolation (Phase 5)", () => {
 
   let mockJobs: any[] = [];
   let mockHistory: any[] = [];
+  let mockRecommendations: any[] = [];
 
   const mockPrisma = {
     job: {
@@ -20,6 +21,23 @@ describe("dashboardRouter Integration & User Isolation (Phase 5)", () => {
         return mockHistory.filter((h) => h.userId === where.userId);
       }),
     },
+    skillGapRecommendation: {
+      findMany: vi.fn(async ({ where }) => {
+        return mockRecommendations.filter((r) => r.userId === where.userId);
+      }),
+      deleteMany: vi.fn(async ({ where }) => {
+        mockRecommendations = mockRecommendations.filter((r) => r.userId !== where.userId);
+        return { count: 1 };
+      }),
+      create: vi.fn(async ({ data }) => {
+        const item = { id: `rec_${Date.now()}_${Math.random()}`, ...data };
+        mockRecommendations.push(item);
+        return item;
+      }),
+    },
+    $transaction: vi.fn(async (promises) => {
+      return Promise.all(promises);
+    }),
   };
 
   const mockCtx: Context = {
@@ -146,5 +164,15 @@ describe("dashboardRouter Integration & User Isolation (Phase 5)", () => {
     const companyNames = summary.recentActivity.map((a) => a.company);
     expect(companyNames).toContain("Figma");
     expect(companyNames).not.toContain("Datadog");
+  });
+
+  it("persists and returns skill gap recommendations on refreshSkillGaps (AC 19.1)", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+    const result = await caller.dashboard.refreshSkillGaps();
+
+    expect(result.count).toBeGreaterThan(0);
+    expect(result.recommendations[0].skillName).toBeDefined();
+    expect(result.recommendations[0].frequency).toBeGreaterThan(0);
+    expect(result.recommendations[0].estimatedLift).toBeDefined();
   });
 });

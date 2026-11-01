@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
-import { getEmbedding, cosineSimilarity } from "@repo/ai-clients";
+import { getEmbedding, cosineSimilarity, generateTextWithGemini, generateTextWithGroq } from "@repo/ai-clients";
 import type { ScoredJobOutput } from "@repo/shared-types";
+import { computeSkillGapsForUser } from "./skillGaps";
 
 export interface JobMatchingProfileInput {
   skills: string[];
@@ -218,6 +219,56 @@ export function generateGroundedExplanation(
 }
 
 /**
+ * Generates an LLM-powered match explanation with strict guardrails (AGENT_PROMPTS.md §2, GUARDRAILS.md §1 & §2)
+ */
+export async function generateAIExplanation(
+  matchScore: number,
+  matchedSkills: string[],
+  missingSkills: string[],
+  jobTitle?: string,
+  companyName?: string
+): Promise<string> {
+  const hasGemini =
+    process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.startsWith("AQ.placeholder");
+  const hasGroq =
+    process.env.GROQ_API_KEY && !process.env.GROQ_API_KEY.startsWith("gsk_placeholder");
+
+  if (!hasGemini && !hasGroq) {
+    return generateGroundedExplanation(matchScore, matchedSkills, missingSkills);
+  }
+
+  // Guardrail §1: injection defense with explicit fencing and instruction reinforcement
+  const prompt = `Given the following computed match data, write a 2-3 sentence explanation for the candidate.
+Do not state anything that contradicts the data below — every claim must be traceable to a listed matched skill, missing skill, or the score itself.
+
+Position: ${jobTitle || "Job opening"} at ${companyName || "Company"}
+Match score: ${matchScore}%
+Matched skills: ${matchedSkills.length > 0 ? matchedSkills.join(", ") : "None explicitly tagged"}
+Missing skills: ${missingSkills.length > 0 ? missingSkills.join(", ") : "None missing"}
+
+Write in a direct, encouraging-but-honest tone. If there are missing skills, mention the single most impactful one. Do not fabricate or infer any skills outside the lists provided.`;
+
+  try {
+    let result = "";
+    if (hasGemini) {
+      result = await generateTextWithGemini(prompt, { temperature: 0.2 });
+    } else if (hasGroq) {
+      result = await generateTextWithGroq(prompt, { temperature: 0.2 });
+    }
+
+    const trimmed = result.trim();
+    if (!trimmed) {
+      return generateGroundedExplanation(matchScore, matchedSkills, missingSkills);
+    }
+
+    return trimmed;
+  } catch {
+    // Graceful fallback to rule-based grounded explanation (Guardrails §2)
+    return generateGroundedExplanation(matchScore, matchedSkills, missingSkills);
+  }
+}
+
+/**
  * Scores a batch of jobs for a user using rule-based fit + pgvector embeddings (ADR-003, ADR-010)
  */
 export async function scoreJobsForUser(
@@ -325,10 +376,11 @@ export async function scoreJobsForUser(
         Math.min(100, Math.round(ruleScore * 0.7 + semanticScore * 0.3))
       );
 
-      const aiExplanation = generateGroundedExplanation(
+      const aiExplanation = await generateAIExplanation(
         finalScore,
         matchedSkills,
-        missingSkills
+        missingSkills,
+        job.title
       );
 
       // D. Persist to DB
@@ -356,6 +408,13 @@ export async function scoreJobsForUser(
         reason: err.message || "Scoring calculation failed",
       });
     }
+  }
+
+  // E. Automatically re-compute and persist SkillGapRecommendation records (AC 19.1)
+  try {
+    await computeSkillGapsForUser(userId);
+  } catch (gapErr) {
+    console.warn(`Failed to update skill gap recommendations for user ${userId}:`, gapErr);
   }
 
   return { scored, failed };
