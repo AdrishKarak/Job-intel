@@ -7,6 +7,8 @@ import {
 } from "@repo/shared-types";
 import { searchAndSyncJobs } from "@/server/discovery";
 import { scoreJobsForUser } from "@/server/matching";
+import { checkRateLimit } from "@/server/rateLimit";
+import { logger, createRunId } from "@/server/logger";
 
 export const jobsRouter = router({
   // 1. List jobs for authenticated user with filters and pagination
@@ -165,7 +167,17 @@ export const jobsRouter = router({
 
   // 4. Trigger discovery for authenticated user
   syncDiscovery: protectedProcedure.mutation(async ({ ctx }) => {
+    checkRateLimit(ctx.userId, "jobs.syncDiscovery", { maxRequests: 5, windowMs: 60_000 });
+    const runId = createRunId();
+    logger.info("jobs.syncDiscovery", "Starting manual discovery sync", { runId, userId: ctx.userId });
+
     const result = await searchAndSyncJobs(ctx.userId);
+
+    logger.info("jobs.syncDiscovery", "Completed manual discovery sync", {
+      runId,
+      userId: ctx.userId,
+      metadata: { newJobs: result.newJobsCount, updated: result.updatedJobsCount },
+    });
     return result;
   }),
 
@@ -173,7 +185,17 @@ export const jobsRouter = router({
   scoreAll: protectedProcedure
     .input(z.object({ jobIds: z.array(z.string()).optional() }).optional())
     .mutation(async ({ ctx, input }) => {
+      checkRateLimit(ctx.userId, "jobs.scoreAll", { maxRequests: 10, windowMs: 60_000 });
+      const runId = createRunId();
+      logger.info("jobs.scoreAll", "Starting batch job scoring", { runId, userId: ctx.userId });
+
       const result = await scoreJobsForUser(ctx.userId, input?.jobIds);
+
+      logger.info("jobs.scoreAll", "Finished batch job scoring", {
+        runId,
+        userId: ctx.userId,
+        metadata: { scored: result.scored.length, failed: result.failed.length },
+      });
       return {
         scoredCount: result.scored.length,
         failedCount: result.failed.length,

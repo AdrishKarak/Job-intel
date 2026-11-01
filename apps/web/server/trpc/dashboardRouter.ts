@@ -1,10 +1,17 @@
 import { router, protectedProcedure } from "./trpc";
 import type { ApplicationStatus } from "@repo/shared-types";
 import { computeSkillGapsForUser, getSkillGapsForUser } from "@/server/skillGaps";
+import { checkRateLimit } from "@/server/rateLimit";
+import { logger, createRunId } from "@/server/logger";
 
 export const dashboardRouter = router({
   getSummary: protectedProcedure.query(async ({ ctx }) => {
     const userId = ctx.userId;
+    const runId = createRunId();
+    logger.info("dashboard.getSummary", "Loading dashboard summary metrics", {
+      runId,
+      userId,
+    });
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -172,7 +179,20 @@ export const dashboardRouter = router({
 
   // Re-compute and update SkillGapRecommendation records (AC 19.1)
   refreshSkillGaps: protectedProcedure.mutation(async ({ ctx }) => {
+    checkRateLimit(ctx.userId, "dashboard.refreshSkillGaps", { maxRequests: 10, windowMs: 60_000 });
+    const runId = createRunId();
+    logger.info("dashboard.refreshSkillGaps", "Refreshing user skill gaps", {
+      runId,
+      userId: ctx.userId,
+    });
+
     const updated = await computeSkillGapsForUser(ctx.userId, ctx.prisma);
+
+    logger.info("dashboard.refreshSkillGaps", "Finished refreshing skill gaps", {
+      runId,
+      userId: ctx.userId,
+      metadata: { count: updated.length },
+    });
     return {
       count: updated.length,
       recommendations: updated,

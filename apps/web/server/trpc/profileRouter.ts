@@ -11,6 +11,8 @@ import {
   getResumeFileBuffer,
   deleteResumeFile,
 } from "@/server/storage";
+import { checkRateLimit } from "@/server/rateLimit";
+import { logger, createRunId } from "@/server/logger";
 import {
   setParseJob,
   getParseJob,
@@ -144,6 +146,7 @@ export const profileRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      checkRateLimit(ctx.userId, "profile.createResumeUploadUrl", { maxRequests: 10, windowMs: 60_000 });
       const allowedTypes = [
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -174,13 +177,26 @@ export const profileRouter = router({
   uploadResume: protectedProcedure
     .input(z.object({ storagePath: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      checkRateLimit(ctx.userId, "profile.uploadResume", { maxRequests: 10, windowMs: 60_000 });
+      const runId = createRunId();
+
       // Security: ensure storage path is scoped to session userId (AC 27.1)
       if (!input.storagePath.startsWith(`resumes/${ctx.userId}/`)) {
+        logger.warn("profile.uploadResume", "Unauthorized storage path access attempt", {
+          runId,
+          userId: ctx.userId,
+          metadata: { attemptedPath: input.storagePath },
+        });
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Cannot access resume storage outside your user partition",
         });
       }
+
+      logger.info("profile.uploadResume", "Starting async resume parsing", {
+        runId,
+        userId: ctx.userId,
+      });
 
       const parseJobId = crypto.randomUUID();
       const job: ParseJob = {
@@ -298,6 +314,9 @@ export const profileRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      checkRateLimit(ctx.userId, "profile.confirmResumeUpdate", { maxRequests: 20, windowMs: 60_000 });
+      const runId = createRunId();
+
       const job = getParseJob(input.parseJobId);
       if (!job || !job.extracted) {
         throw new TRPCError({
@@ -307,6 +326,11 @@ export const profileRouter = router({
       }
 
       if (job.userId !== ctx.userId) {
+        logger.warn("profile.confirmResumeUpdate", "Cross-tenant parse confirmation blocked", {
+          runId,
+          userId: ctx.userId,
+          metadata: { targetOwner: job.userId },
+        });
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Access denied",
@@ -314,6 +338,10 @@ export const profileRouter = router({
       }
 
       const extracted = job.extracted;
+      logger.info("profile.confirmResumeUpdate", "Applying resume update to profile", {
+        runId,
+        userId: ctx.userId,
+      });
 
       // Upsert CandidateProfile
       const profile = await ctx.prisma.candidateProfile.upsert({
