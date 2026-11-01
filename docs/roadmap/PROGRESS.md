@@ -48,10 +48,37 @@ Per ADR-012, through Phase 8 the system operates as a single application (`apps/
 - **Step 3.2**: Built `JobDetailPanel.tsx` slide-over component with external application link (no auto-apply notice per Rule 3), status management buttons, status transition notes, skill tags, and reverse-chronological status timeline. Checks: `pnpm typecheck`. Result: PASS.
 - **Step 3.3**: Built interactive Jobs CRM Page `apps/web/app/jobs/page.tsx` with filter bar, search input, status dropdown, remote-only toggle, tabular CRM view with neobrutalist status badges, and integration tests. Checks: `pnpm typecheck`, `pnpm test` (all 15 tests pass). Result: PASS.
 - **Step 4.1**: Built matching engine with `@repo/ai-clients` (embeddings generator, cosine similarity, Gemini, Groq), `server/matching.ts` (rule-based scoring: 50% skill fit, 20% role fit, 15% location fit, 15% salary fit, plus 30% semantic embedding refinement), grounded explanation generator, `scoreAll` tRPC mutation, score breakdown UI in `JobDetailPanel.tsx` and `JobsPage`, and CLI runner `score-jobs.ts`. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 25 tests pass), `pnpm --filter @repo/db score-jobs` (all 25 database jobs scored), `pnpm --filter web build` (successful Next.js production build). Result: PASS.
+- **Step 5.1**: Built `dashboardRouter` with `getSummary` procedure, real-time stat cards, match score distribution bars, 10-stage pipeline status grid, top skill gap intelligence widget, and chronological recent activity feed. Created test suite in `dashboardRouter.test.ts` and enhanced `apps/web/app/page.tsx`. Checks: `pnpm typecheck`, `pnpm --filter web test` (all 29 tests pass), `pnpm --filter web build` (successful Next.js production build). Result: PASS.
 
 ---
 
 ## Phase Reports
+
+### Phase 5 Report: Dashboard Page (MVP Complete)
+- **What was built:**
+  - `apps/web/server/trpc/dashboardRouter.ts`: procedure `getSummary` with strict per-user queries calculating:
+    - Core stats: `jobsFoundToday`, `totalJobs`, `activeApplications`, `interviews`, `offers`, and average match fit score.
+    - Score distribution: counts for High (≥80%), Good (70–79%), Moderate (<70%), and Unscored.
+    - Status breakdown: counts across all 10 CRM pipeline stages.
+    - Skill gap aggregation: frequency and pipeline percentage for all missing skills across user's jobs (AC 19.1).
+    - Unified recent activity feed: merging `ApplicationStatusHistory` transitions and newly discovered jobs into a chronological event stream.
+  - `apps/web/app/page.tsx`: interactive neobrutalist Dashboard UI featuring:
+    - Bento stat cards for total jobs discovered, active applications, interviews/offers, and average fit score.
+    - Match score distribution chart with mint (≥80%), sky (70–79%), and neutral progress indicators.
+    - Complete 9-stage application pipeline status grid.
+    - Top missing skills widget with high-impact badges, frequency bars, and direct CTA to profile.
+    - Real-time pipeline activity timeline with company names, positions, status badges, and transition notes.
+  - `apps/web/server/trpc/dashboardRouter.test.ts`: test suite confirming strict cross-user data isolation, metrics accuracy, and skill gap aggregation.
+- **Exit Criteria Check:**
+  - All three pages functional on real, matched job data: CONFIRMED.
+    - `/` (Dashboard): live metrics, score distribution, skill gaps, activity feed.
+    - `/jobs` (Jobs CRM): 25 real ATS positions, 10-stage status selector, fit evaluations, matched/missing skill chips, AI explanations.
+    - `/profile` (Profile): resume parser with HITL preview, skill management, and search preferences.
+  - Legitimate MVP functioning end-to-end within single `apps/web` app: CONFIRMED.
+  - All tests green (29/29), typecheck green, Next.js build green: CONFIRMED.
+- **Deviations and New ADRs:** None.
+- **Open Questions:** None.
+- **Next:** Phase 6 — AI Explanations & Skill Gap Recommendations (LLM-based personalized explanations, `SkillGapRecommendation` persistence, and trend estimation).
 
 ### Phase 4 Report: Matching Engine
 - **What was built:**
