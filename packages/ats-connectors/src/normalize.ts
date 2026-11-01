@@ -84,7 +84,9 @@ export function extractSkillsFromText(text: string): string[] {
 
   for (const skill of KNOWN_SKILLS) {
     const escaped = escapeRegex(skill);
-    const regex = new RegExp(`\\b${escaped}\\b`, "i");
+    const start = /^\w/.test(skill) ? "(?:^|[^a-zA-Z0-9_])" : "(?:^|\\s)";
+    const end = /\w$/.test(skill) ? "(?![a-zA-Z0-9_+#])" : "(?:$|[^a-zA-Z0-9_+#])";
+    const regex = new RegExp(`${start}${escaped}${end}`, "i");
     if (regex.test(text)) {
       matched.add(skill === "Golang" ? "Go" : skill);
     }

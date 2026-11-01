@@ -64,20 +64,31 @@ export async function extractTextFromBuffer(
   return cleaned;
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
+function matchesSkillInText(text: string, skill: string): boolean {
+  const escaped = escapeRegex(skill);
+  const start = /^\w/.test(skill) ? "(?:^|[^a-zA-Z0-9_])" : "(?:^|\\s)";
+  const end = /\w$/.test(skill) ? "(?![a-zA-Z0-9_+#])" : "(?:$|[^a-zA-Z0-9_+#])";
+  const regex = new RegExp(`${start}${escaped}${end}`, "i");
+  return regex.test(text);
+}
+
 /**
  * Heuristic fallback parser when AI provider is unavailable
  */
 function heuristicParse(text: string): ResumeParsedOutput {
   const commonTech = [
     "JavaScript", "TypeScript", "React", "Next.js", "Node.js", "Python",
-    "Go", "Java", "C++", "Rust", "PostgreSQL", "MySQL", "MongoDB", "Redis",
+    "Go", "Java", "C++", "C#", "Rust", "PostgreSQL", "MySQL", "MongoDB", "Redis",
     "Docker", "Kubernetes", "AWS", "GCP", "GraphQL", "Tailwind CSS", "Git"
   ];
 
   const matchedSkills: { name: string; category: string | null }[] = [];
   for (const tech of commonTech) {
-    const regex = new RegExp(`\\b${tech.replace(".", "\\.")}\\b`, "i");
-    if (regex.test(text)) {
+    if (matchesSkillInText(text, tech)) {
       matchedSkills.push({ name: tech, category: "technology" });
     }
   }
