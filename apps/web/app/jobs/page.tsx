@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -271,13 +272,12 @@ export default function JobsPage() {
         {/* Notification Banner */}
         {notification && (
           <div
-            className={`p-4 border-2 border-ink shadow-neo flex items-center justify-between transition-all ${
-              notification.type === "success"
+            className={`p-4 border-2 border-ink shadow-neo flex items-center justify-between transition-all ${notification.type === "success"
                 ? "bg-mint text-ink"
                 : notification.type === "warning"
-                ? "bg-amber-100 text-ink"
-                : "bg-paper text-ink"
-            }`}
+                  ? "bg-amber-100 text-ink"
+                  : "bg-paper text-ink"
+              }`}
           >
             <div className="flex items-center gap-2.5 font-bold text-xs font-mono">
               {notification.type === "success" ? (
@@ -324,32 +324,29 @@ export default function JobsPage() {
           <div className="flex flex-wrap items-center gap-1.5 border-2 border-ink p-1 bg-neutral-100">
             <button
               onClick={() => handleLocationFilterChange("ALL")}
-              className={`px-2.5 py-1 text-xs font-bold uppercase transition-none ${
-                locationFilter === "ALL"
+              className={`px-2.5 py-1 text-xs font-bold uppercase transition-none ${locationFilter === "ALL"
                   ? "bg-ink text-paper shadow-neo-sm"
                   : "bg-paper text-ink hover:bg-neutral-200"
-              }`}
+                }`}
             >
               All Regions
             </button>
             <button
               onClick={() => handleLocationFilterChange("INDIA")}
-              className={`px-2.5 py-1 text-xs font-bold uppercase transition-none flex items-center gap-1.5 ${
-                locationFilter === "INDIA"
+              className={`px-2.5 py-1 text-xs font-bold uppercase transition-none flex items-center gap-1.5 ${locationFilter === "INDIA"
                   ? "bg-ink text-paper shadow-neo-sm"
                   : "bg-paper text-ink hover:bg-neutral-200"
-              }`}
+                }`}
             >
               <CustomIndiaIcon size={15} />
               <span>India Hubs</span>
             </button>
             <button
               onClick={() => handleLocationFilterChange("REMOTE")}
-              className={`px-2.5 py-1 text-xs font-bold uppercase transition-none flex items-center gap-1.5 ${
-                locationFilter === "REMOTE"
+              className={`px-2.5 py-1 text-xs font-bold uppercase transition-none flex items-center gap-1.5 ${locationFilter === "REMOTE"
                   ? "bg-ink text-paper shadow-neo-sm"
                   : "bg-paper text-ink hover:bg-neutral-200"
-              }`}
+                }`}
             >
               <CustomGlobeIcon size={15} />
               <span>Remote Only</span>
@@ -450,13 +447,12 @@ export default function JobsPage() {
                         <td className="py-3.5 px-4 font-mono text-xs">
                           {score !== null ? (
                             <span
-                              className={`px-2 py-0.5 border border-ink font-bold ${
-                                score >= 80
+                              className={`px-2 py-0.5 border border-ink font-bold ${score >= 80
                                   ? "bg-mint"
                                   : score >= 70
-                                  ? "bg-sky"
-                                  : "bg-paper"
-                              }`}
+                                    ? "bg-sky"
+                                    : "bg-paper"
+                                }`}
                             >
                               {score}%
                             </span>
