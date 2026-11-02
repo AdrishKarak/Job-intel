@@ -1,4 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then pnpm --dir ../.. db:deploy || exit 1; fi; pnpm --dir ../.. build",
   "outputDirectory": ".next"
 }

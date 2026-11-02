@@ -103,6 +103,8 @@ export const jobsRouter = router({
             where: { userId: ctx.userId },
             select: {
               experienceYears: true,
+              minExperienceYears: true,
+              maxExperienceYears: true,
               experienceSummary: true,
               preferredLocations: true,
               preferredRoles: true,
@@ -111,7 +113,7 @@ export const jobsRouter = router({
           }),
           ctx.prisma.userSkill.findMany({
             where: { userId: ctx.userId },
-            include: { skill: true },
+            select: { skillId: true },
           }),
         ]);
 
@@ -120,6 +122,8 @@ export const jobsRouter = router({
         if (profile) {
           const candidateYears = resolveCandidateExperienceYears({
             experienceYears: profile.experienceYears,
+            minExperienceYears: profile.minExperienceYears,
+            maxExperienceYears: profile.maxExperienceYears,
             experienceSummary: profile.experienceSummary as any,
             preferredRoles: profile.preferredRoles,
             preferredLocations: profile.preferredLocations,
@@ -292,12 +296,19 @@ export const jobsRouter = router({
       const [jobs, total] = await Promise.all([
         ctx.prisma.job.findMany({
           where,
-          include: {
+          select: {
+            id: true,
+            title: true,
+            location: true,
+            remote: true,
+            salaryMin: true,
+            salaryMax: true,
+            applicationUrl: true,
+            source: true,
+            status: true,
+            matchScore: true,
             company: {
-              select: { id: true, name: true, atsType: true, careerPageUrl: true },
-            },
-            jobSkills: {
-              include: { skill: true },
+              select: { name: true },
             },
           },
           orderBy,

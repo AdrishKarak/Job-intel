@@ -17,8 +17,9 @@ export const dashboardRouter = router({
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // 1. Fetch user's jobs, profile, and skills
-    const [rawJobs, profile, userSkills] = await Promise.all([
+    // These reads are independent. Fetch them together so dashboard latency is
+    // bound by the slowest query rather than the sum of their round trips.
+    const [rawJobs, profile, userSkills, statusHistory, persistedRecommendations] = await Promise.all([
       ctx.prisma.job.findMany({
         where: { userId },
         select: {
@@ -35,7 +36,9 @@ export const dashboardRouter = router({
             select: { name: true },
           },
           jobSkills: {
-            include: { skill: true },
+            select: {
+              skill: { select: { name: true } },
+            },
           },
         },
       }),
@@ -53,8 +56,24 @@ export const dashboardRouter = router({
       }),
       ctx.prisma.userSkill.findMany({
         where: { userId },
-        include: { skill: true },
+        select: {
+          skill: { select: { name: true } },
+        },
       }),
+      ctx.prisma.applicationStatusHistory.findMany({
+        where: { userId },
+        take: 10,
+        orderBy: { changedAt: "desc" },
+        include: {
+          job: {
+            select: {
+              title: true,
+              company: { select: { name: true } },
+            },
+          },
+        },
+      }),
+      getSkillGapsForUser(userId, ctx.prisma),
     ]);
 
     const fitCriteria: CandidateFitCriteria = {
@@ -169,22 +188,7 @@ export const dashboardRouter = router({
       .sort((a, b) => b.count - a.count)
       .slice(0, 8);
 
-    // 2. Fetch recent application status transitions
-    const statusHistory = await ctx.prisma.applicationStatusHistory.findMany({
-      where: { userId },
-      take: 10,
-      orderBy: { changedAt: "desc" },
-      include: {
-        job: {
-          select: {
-            title: true,
-            company: { select: { name: true } },
-          },
-        },
-      },
-    });
-
-    // 3. Format unified activity feed
+    // Format unified activity feed.
     const activityList = [
       ...statusHistory.map((h) => ({
         id: `status-${h.id}`,
@@ -210,8 +214,6 @@ export const dashboardRouter = router({
     ]
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       .slice(0, 10);
-
-    const persistedRecommendations = await getSkillGapsForUser(userId, ctx.prisma);
 
     return {
       stats: {
@@ -269,7 +271,14 @@ export const dashboardRouter = router({
       const [jobs, total] = await Promise.all([
         ctx.prisma.job.findMany({
           where,
-          include: {
+          select: {
+            id: true,
+            title: true,
+            location: true,
+            remote: true,
+            status: true,
+            matchScore: true,
+            applicationUrl: true,
             company: { select: { name: true } },
           },
           orderBy: [
