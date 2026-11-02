@@ -8,6 +8,8 @@
 
 export interface CandidateFitCriteria {
   experienceYears?: number | null;
+  minExperienceYears?: number | null;
+  maxExperienceYears?: number | null;
   experienceSummary?: Array<{
     company?: string;
     title?: string;
@@ -59,6 +61,14 @@ const UNRELATED_DOMAINS_REGEX =
 export function resolveCandidateExperienceYears(criteria: CandidateFitCriteria): number {
   if (typeof criteria.experienceYears === "number" && criteria.experienceYears >= 0) {
     return criteria.experienceYears;
+  }
+
+  if (typeof criteria.maxExperienceYears === "number" && criteria.maxExperienceYears >= 0) {
+    return criteria.maxExperienceYears;
+  }
+
+  if (typeof criteria.minExperienceYears === "number" && criteria.minExperienceYears >= 0) {
+    return criteria.minExperienceYears;
   }
 
   if (criteria.experienceSummary && criteria.experienceSummary.length > 0) {
@@ -145,7 +155,8 @@ export function extractJobMinYears(title: string, description?: string | null): 
  */
 export function filterExperienceWise(
   job: JobForFitEvaluation,
-  candidateYears: number
+  candidateYears: number,
+  criteria?: CandidateFitCriteria
 ): { passed: boolean; reason?: string; jobMinYears?: number | null; jobSeniority?: string } {
   const title = job.title;
   let jobSeniority = "MID";
@@ -156,6 +167,55 @@ export function filterExperienceWise(
   else if (SENIOR_REGEX.test(title)) jobSeniority = "SENIOR";
 
   const minYears = extractJobMinYears(title, job.description);
+
+  // Preferred experience range filtering (when user configures preferred range for agent search)
+  if (typeof criteria?.maxExperienceYears === "number") {
+    const maxExp = criteria.maxExperienceYears;
+    if (minYears !== null && minYears > maxExp) {
+      return {
+        passed: false,
+        reason: `Job requires ${minYears}+ years of experience, exceeding candidate's preferred search maximum of ${maxExp} years.`,
+        jobMinYears: minYears,
+        jobSeniority,
+      };
+    }
+    if (maxExp < 4 && jobSeniority === "SENIOR") {
+      return {
+        passed: false,
+        reason: `Job requires Senior level, exceeding candidate's preferred experience max of ${maxExp} years.`,
+        jobMinYears: minYears,
+        jobSeniority,
+      };
+    }
+    if (maxExp < 7 && (jobSeniority === "STAFF_PRINCIPAL" || jobSeniority === "EXECUTIVE")) {
+      return {
+        passed: false,
+        reason: `Job requires ${jobSeniority} level, exceeding candidate's preferred experience max of ${maxExp} years.`,
+        jobMinYears: minYears,
+        jobSeniority,
+      };
+    }
+  }
+
+  if (typeof criteria?.minExperienceYears === "number") {
+    const minExp = criteria.minExperienceYears;
+    if (minExp >= 2 && jobSeniority === "INTERN") {
+      return {
+        passed: false,
+        reason: `Job is an internship/student role, below candidate's preferred search minimum of ${minExp} years.`,
+        jobMinYears: minYears,
+        jobSeniority,
+      };
+    }
+    if (minExp >= 3 && jobSeniority === "ENTRY") {
+      return {
+        passed: false,
+        reason: `Job is an entry-level position, below candidate's preferred search minimum of ${minExp} years.`,
+        jobMinYears: minYears,
+        jobSeniority,
+      };
+    }
+  }
 
   // Rule 1: Experienced candidates (>= 3 years) should not receive internships or student positions
   if (jobSeniority === "INTERN" && candidateYears >= 3) {
@@ -220,6 +280,33 @@ export function filterExperienceWise(
   return { passed: true, jobMinYears: minYears, jobSeniority };
 }
 
+export const CITY_SYNONYMS: Record<string, string[]> = {
+  bengaluru: ["bengaluru", "bangalore", "blr"],
+  bangalore: ["bengaluru", "bangalore", "blr"],
+  gurugram: ["gurugram", "gurgaon", "ncr", "delhi ncr"],
+  gurgaon: ["gurugram", "gurgaon", "ncr", "delhi ncr"],
+  noida: ["noida", "greater noida", "ncr", "delhi ncr"],
+  delhi: ["delhi", "new delhi", "ncr", "delhi ncr"],
+  "new delhi": ["delhi", "new delhi", "ncr", "delhi ncr"],
+  mumbai: ["mumbai", "bombay", "navi mumbai", "thane"],
+  bombay: ["mumbai", "bombay", "navi mumbai", "thane"],
+  kolkata: ["kolkata", "calcutta"],
+  calcutta: ["kolkata", "calcutta"],
+  chennai: ["chennai", "madras"],
+  madras: ["chennai", "madras"],
+  hyderabad: ["hyderabad", "secunderabad", "hyd"],
+  kochi: ["kochi", "cochin", "ernakulam", "kerala"],
+  cochin: ["kochi", "cochin", "ernakulam", "kerala"],
+  ahmedabad: ["ahmedabad", "gandhinagar"],
+  pune: ["pune", "hinjewadi"],
+  trivandrum: ["trivandrum", "thiruvananthapuram", "kerala"],
+  thiruvananthapuram: ["trivandrum", "thiruvananthapuram", "kerala"],
+  sf: ["san francisco", "sf", "bay area", "silicon valley"],
+  "san francisco": ["san francisco", "sf", "bay area", "silicon valley"],
+  nyc: ["new york", "nyc", "manhattan", "brooklyn"],
+  "new york": ["new york", "nyc", "manhattan", "brooklyn"],
+};
+
 /**
  * Stage 2: Location-wise filtering
  */
@@ -229,7 +316,7 @@ export function filterLocationWise(
 ): { passed: boolean; reason?: string } {
   const remotePref = criteria.remotePreference || "NO_PREFERENCE";
   const preferredLocations = criteria.preferredLocations || [];
-  const jobLoc = (job.location || "").toLowerCase();
+  const jobLoc = (job.location || "").toLowerCase().trim();
 
   const isJobRemote = Boolean(
     job.remote ||
@@ -253,9 +340,11 @@ export function filterLocationWise(
   // 2. Strict On-site Only check
   if (remotePref === "ONSITE") {
     if (isJobRemote && preferredLocations.length > 0) {
-      const inPref = preferredLocations.some((pl) =>
-        jobLoc.includes(pl.toLowerCase().trim())
-      );
+      const inPref = preferredLocations.some((pl) => {
+        const cleanPref = pl.toLowerCase().trim();
+        const synonyms = CITY_SYNONYMS[cleanPref] || [cleanPref];
+        return synonyms.some((syn) => jobLoc.includes(syn));
+      });
       if (!inPref) {
         return {
           passed: false,
@@ -286,13 +375,14 @@ export function filterLocationWise(
           if (l.includes("us") || l.includes("united states") || l.includes("california") || l.includes("ca") || l.includes("ny")) {
             return jobLoc.includes("us") || jobLoc.includes("usa") || jobLoc.includes("north america");
           }
-          if (l.includes("india") || l.includes("bangalore") || l.includes("hyderabad")) {
+          if (l.includes("india") || l.includes("bangalore") || l.includes("bengaluru") || l.includes("hyderabad") || l.includes("pune") || l.includes("delhi") || l.includes("noida") || l.includes("mumbai") || l.includes("kolkata")) {
             return jobLoc.includes("india") || jobLoc.includes("apac");
           }
           if (l.includes("uk") || l.includes("london") || l.includes("europe") || l.includes("germany")) {
             return jobLoc.includes("uk") || jobLoc.includes("emea") || jobLoc.includes("europe");
           }
-          return jobLoc.includes(l);
+          const synonyms = CITY_SYNONYMS[l] || [l];
+          return synonyms.some((syn) => jobLoc.includes(syn));
         });
 
         if (!matchesPrefRegion && remotePref !== "REMOTE") {
@@ -305,15 +395,54 @@ export function filterLocationWise(
       return { passed: true };
     }
 
-    // On-site / Hybrid: MUST match one of the preferred locations
+    // Check if candidate wants positions in India
+    const candidateWantsIndia = preferredLocations.some((pl) => {
+      const l = pl.toLowerCase().trim();
+      return (
+        l === "india" ||
+        l.includes("india") ||
+        [
+          "bengaluru", "bangalore", "hyderabad", "pune", "chennai", "gurugram", "gurgaon",
+          "noida", "delhi", "new delhi", "kolkata", "calcutta", "mumbai", "bombay",
+          "ahmedabad", "kochi", "cochin", "trivandrum"
+        ].includes(l)
+      );
+    });
+
+    // Check if job is in India (general or specific)
+    const isJobInIndia =
+      jobLoc.includes("india") ||
+      jobLoc.includes(", in") ||
+      jobLoc.endsWith(" in") ||
+      jobLoc.includes("ind");
+
+    if (candidateWantsIndia && isJobInIndia) {
+      // If job specifies country-level "India" or "Remote India", it passes for India candidates
+      if (
+        jobLoc === "india" ||
+        jobLoc.includes("remote india") ||
+        jobLoc.includes("india remote") ||
+        jobLoc.includes("remote, india") ||
+        jobLoc.includes("india, remote") ||
+        jobLoc.includes("india - remote")
+      ) {
+        return { passed: true };
+      }
+    }
+
+    // On-site / Hybrid: Match one of the preferred locations with synonyms & regional aliases
     const matchesAny = preferredLocations.some((prefLoc) => {
       const cleanPref = prefLoc.toLowerCase().trim();
       if (!cleanPref) return false;
 
-      // Handle common state/city abbreviations
-      if (jobLoc.includes(cleanPref)) return true;
+      // Check synonyms dictionary (e.g. Bengaluru <-> Bangalore, Gurugram <-> Gurgaon)
+      const synonyms = CITY_SYNONYMS[cleanPref] || [cleanPref];
+      if (synonyms.some((syn) => jobLoc.includes(syn))) return true;
 
-      const tokens = cleanPref.split(/[\s,]+/).filter((t) => t.length >= 2);
+      // If user selected general "India" and job is located anywhere in India
+      if (cleanPref === "india" && isJobInIndia) return true;
+
+      const tokens = cleanPref.split(/[\s,]+/).filter((t) => t.length >= 3);
       return tokens.length > 0 && tokens.some((t) => jobLoc.includes(t));
     });
 
@@ -402,7 +531,19 @@ export function filterPositionAndSkillsWise(
       }
     }
 
-    const hasSkillMatch = skillOverlapCount > 0 || textSkillMatchCount > 0;
+    const isCoreSoftwareRole =
+      /software|full\s*stack|frontend|backend|web|developer|engineer|trainee|associate|intern|cloud|qa|embedded|consultant|solutions/i.test(
+        title
+      );
+
+    // If job explicitly provided skill tags, require overlap. If listing has no skill tags and brief desc (Workday, ATS stubs), trust role match.
+    const hasExplicitJobSkills = jobSkills.length > 0;
+    const isBriefListingWithoutSkills = !hasExplicitJobSkills && desc.length < 350;
+
+    const hasSkillMatch =
+      skillOverlapCount > 0 ||
+      textSkillMatchCount > 0 ||
+      (roleMatches && isCoreSoftwareRole && isBriefListingWithoutSkills);
 
     if (!hasSkillMatch) {
       return {
@@ -426,7 +567,7 @@ export function evaluateJobMatch(
   const reasons: string[] = [];
 
   // Stage 1: Experience-wise
-  const expRes = filterExperienceWise(job, candidateYears);
+  const expRes = filterExperienceWise(job, candidateYears, criteria);
   if (!expRes.passed) {
     return {
       passed: false,

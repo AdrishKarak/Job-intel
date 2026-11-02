@@ -43,6 +43,8 @@ export const dashboardRouter = router({
         where: { userId },
         select: {
           experienceYears: true,
+          minExperienceYears: true,
+          maxExperienceYears: true,
           experienceSummary: true,
           preferredLocations: true,
           preferredRoles: true,
@@ -57,6 +59,8 @@ export const dashboardRouter = router({
 
     const fitCriteria: CandidateFitCriteria = {
       experienceYears: profile?.experienceYears,
+      minExperienceYears: profile?.minExperienceYears,
+      maxExperienceYears: profile?.maxExperienceYears,
       experienceSummary: profile?.experienceSummary as any,
       preferredLocations: profile?.preferredLocations || [],
       preferredRoles: profile?.preferredRoles || [],

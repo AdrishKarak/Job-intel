@@ -15,7 +15,7 @@ describe("ATS Connectors Suite (Phase 8)", () => {
           location: "San Francisco, CA",
           isRemote: true,
           jobUrl: "https://jobs.ashbyhq.com/linear/ashby_1",
-          descriptionPlain: "Looking for TypeScript and React experts. Salary: $160,000 - $200,000.",
+          descriptionPlain: "Looking for TypeScript and React experts. Salary: ₹16,00,000 - ₹20,00,000.",
         },
       ],
     };
@@ -32,8 +32,8 @@ describe("ATS Connectors Suite (Phase 8)", () => {
     expect(jobs[0].companyName).toBe("Linear");
     expect(jobs[0].remote).toBe(true);
     expect(jobs[0].source).toBe("ASHBY");
-    expect(jobs[0].salaryMin).toBe(160000);
-    expect(jobs[0].salaryMax).toBe(200000);
+    expect(jobs[0].salaryMin).toBe(1600000);
+    expect(jobs[0].salaryMax).toBe(2000000);
     expect(jobs[0].skills).toContain("TypeScript");
     expect(jobs[0].skills).toContain("React");
   });

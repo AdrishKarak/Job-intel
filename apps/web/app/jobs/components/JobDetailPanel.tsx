@@ -2,19 +2,19 @@
 
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { statusColorMap } from "@/lib/utils";
+import { statusColorMap, formatSalaryRangeInr } from "@/lib/utils";
 import type { ApplicationStatus } from "@repo/shared-types";
 import {
   X,
   ExternalLink,
   MapPin,
-  DollarSign,
+  IndianRupee,
   Building,
   Clock,
-  Sparkles,
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
+import { CustomSparkleIcon } from "@/components/icons/CustomIcons";
 
 interface JobDetailPanelProps {
   jobId: string;
@@ -71,8 +71,13 @@ export function JobDetailPanel({
   };
 
   return (
-    <div className="fixed inset-0 bg-ink/50 backdrop-blur-xs flex justify-end z-50">
-      <div className="w-full max-w-2xl bg-paper min-h-screen border-l-4 border-ink shadow-neo-lg flex flex-col justify-between overflow-y-auto p-6 md:p-8 animate-in slide-in-from-right duration-200">
+    <div
+      className="fixed inset-0 bg-ink/50 backdrop-blur-xs flex justify-end z-50 transition-opacity"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="w-full max-w-2xl bg-paper min-h-screen border-l-4 border-ink shadow-neo-lg flex flex-col justify-between overflow-y-auto p-4 sm:p-6 md:p-8 animate-in slide-in-from-right duration-200">
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-start justify-between border-b-2 border-ink pb-4">
@@ -96,9 +101,8 @@ export function JobDetailPanel({
                 </span>
                 {(job?.salaryMin || job?.salaryMax) && (
                   <span className="flex items-center gap-1 font-mono text-ink">
-                    <DollarSign className="w-3.5 h-3.5" />
-                    {job.salaryMin ? `$${job.salaryMin.toLocaleString()}` : "$0"} -{" "}
-                    {job.salaryMax ? `$${job.salaryMax.toLocaleString()}` : "DOE"}
+                    <IndianRupee className="w-3.5 h-3.5 text-ink/70" />
+                    <span>{formatSalaryRangeInr(job.salaryMin, job.salaryMax)}</span>
                   </span>
                 )}
               </div>
@@ -115,7 +119,7 @@ export function JobDetailPanel({
           <div className="p-4 bg-mint/30 border-2 border-ink shadow-neo-sm space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-ink uppercase flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-ink" />
+                <CustomSparkleIcon size={16} className="text-ink" />
                 <span>Ready to Apply</span>
               </span>
               {job?.applicationUrl && (
@@ -176,7 +180,7 @@ export function JobDetailPanel({
           <div className="neo-card p-5 bg-paper space-y-4">
             <div className="flex items-center justify-between border-b-2 border-ink pb-3">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-ink" />
+                <CustomSparkleIcon size={16} className="text-ink" />
                 <h3 className="font-display text-sm uppercase text-ink">
                   AI Fit Assessment
                 </h3>

@@ -48,7 +48,9 @@ export const profileRouter = router({
       const updated = await ctx.prisma.candidateProfile.upsert({
         where: { userId: ctx.userId },
         update: {
-          experienceYears: input.experienceYears,
+          experienceYears: input.experienceYears ?? input.maxExperienceYears ?? undefined,
+          minExperienceYears: input.minExperienceYears,
+          maxExperienceYears: input.maxExperienceYears,
           professionalSummary: input.professionalSummary,
           preferredRoles: input.preferredRoles,
           preferredLocations: input.preferredLocations,
@@ -61,7 +63,9 @@ export const profileRouter = router({
         },
         create: {
           userId: ctx.userId,
-          experienceYears: input.experienceYears,
+          experienceYears: input.experienceYears ?? input.maxExperienceYears ?? 0,
+          minExperienceYears: input.minExperienceYears ?? 0,
+          maxExperienceYears: input.maxExperienceYears ?? 5,
           professionalSummary: input.professionalSummary,
           preferredRoles: input.preferredRoles ?? [],
           preferredLocations: input.preferredLocations ?? [],

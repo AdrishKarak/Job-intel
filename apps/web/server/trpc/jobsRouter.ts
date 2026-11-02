@@ -12,6 +12,7 @@ import { logger, createRunId } from "@/server/logger";
 import {
   evaluateJobMatch,
   resolveCandidateExperienceYears,
+  CITY_SYNONYMS,
   type CandidateFitCriteria,
 } from "@/server/jobFilterEngine";
 
@@ -47,7 +48,30 @@ export const jobsRouter = router({
       }
 
       if (filters?.location) {
-        where.location = { contains: filters.location, mode: "insensitive" };
+        if (/^india$/i.test(filters.location.trim())) {
+          const indiaLocations = [
+            "India",
+            "Bengaluru",
+            "Bangalore",
+            "Hyderabad",
+            "Pune",
+            "Chennai",
+            "Gurugram",
+            "Gurgaon",
+            "Noida",
+            "Mumbai",
+            "Kolkata",
+            "Delhi",
+            "Ahmedabad",
+            "Kochi",
+          ];
+          const indiaOr = indiaLocations.map((loc) => ({
+            location: { contains: loc, mode: "insensitive" },
+          }));
+          where.AND = where.AND ? [...where.AND, { OR: indiaOr }] : [{ OR: indiaOr }];
+        } else {
+          where.location = { contains: filters.location, mode: "insensitive" };
+        }
       }
 
       if (filters?.company) {
@@ -153,8 +177,36 @@ export const jobsRouter = router({
             locOr.push({ remote: true });
           } else {
             if (profile.preferredLocations && profile.preferredLocations.length > 0) {
+              const addedLocations = new Set<string>();
+              const hasIndiaLocation = profile.preferredLocations.some((loc) => {
+                const l = loc.toLowerCase().trim();
+                return (
+                  l.includes("india") ||
+                  [
+                    "bengaluru", "bangalore", "hyderabad", "pune", "chennai", "gurugram",
+                    "gurgaon", "noida", "delhi", "new delhi", "kolkata", "mumbai", "ahmedabad", "kochi"
+                  ].includes(l)
+                );
+              });
+
               for (const loc of profile.preferredLocations) {
-                locOr.push({ location: { contains: loc, mode: "insensitive" } });
+                const clean = loc.toLowerCase().trim();
+                if (!clean) continue;
+                if (!addedLocations.has(clean)) {
+                  addedLocations.add(clean);
+                  locOr.push({ location: { contains: loc, mode: "insensitive" } });
+                }
+                const syns = CITY_SYNONYMS[clean] || [];
+                for (const syn of syns) {
+                  if (!addedLocations.has(syn)) {
+                    addedLocations.add(syn);
+                    locOr.push({ location: { contains: syn, mode: "insensitive" } });
+                  }
+                }
+              }
+
+              if (hasIndiaLocation && !addedLocations.has("india")) {
+                locOr.push({ location: { contains: "India", mode: "insensitive" } });
               }
             }
             if (profile.remotePreference !== "ONSITE") {
@@ -168,8 +220,48 @@ export const jobsRouter = router({
           // Stage 3: Role & Skill Relevance
           const roleSkillOr: any[] = [];
           if (profile.preferredRoles && profile.preferredRoles.length > 0) {
+            const addedTitles = new Set<string>();
             for (const r of profile.preferredRoles) {
-              roleSkillOr.push({ title: { contains: r, mode: "insensitive" } });
+              const clean = r.trim();
+              if (!clean) continue;
+              if (!addedTitles.has(clean.toLowerCase())) {
+                addedTitles.add(clean.toLowerCase());
+                roleSkillOr.push({ title: { contains: clean, mode: "insensitive" } });
+              }
+
+              // Also match common variations like Fullstack/Full Stack, Backend/Back-end
+              if (/full\s*stack/i.test(clean)) {
+                for (const syn of ["Fullstack", "Full-Stack", "Full Stack"]) {
+                  if (!addedTitles.has(syn.toLowerCase())) {
+                    addedTitles.add(syn.toLowerCase());
+                    roleSkillOr.push({ title: { contains: syn, mode: "insensitive" } });
+                  }
+                }
+              }
+              if (/backend/i.test(clean)) {
+                for (const syn of ["Back-End", "Back End", "Backend"]) {
+                  if (!addedTitles.has(syn.toLowerCase())) {
+                    addedTitles.add(syn.toLowerCase());
+                    roleSkillOr.push({ title: { contains: syn, mode: "insensitive" } });
+                  }
+                }
+              }
+              if (/frontend/i.test(clean)) {
+                for (const syn of ["Front-End", "Front End", "Frontend"]) {
+                  if (!addedTitles.has(syn.toLowerCase())) {
+                    addedTitles.add(syn.toLowerCase());
+                    roleSkillOr.push({ title: { contains: syn, mode: "insensitive" } });
+                  }
+                }
+              }
+              if (/software\s*engineer/i.test(clean)) {
+                for (const syn of ["Software Developer", "SDE", "MTS", "Member of Technical Staff"]) {
+                  if (!addedTitles.has(syn.toLowerCase())) {
+                    addedTitles.add(syn.toLowerCase());
+                    roleSkillOr.push({ title: { contains: syn, mode: "insensitive" } });
+                  }
+                }
+              }
             }
           }
           if (userSkills.length > 0) {
@@ -373,6 +465,8 @@ export const jobsRouter = router({
 
     const fitCriteria: CandidateFitCriteria = {
       experienceYears: profile?.experienceYears,
+      minExperienceYears: profile?.minExperienceYears,
+      maxExperienceYears: profile?.maxExperienceYears,
       experienceSummary: profile?.experienceSummary as any,
       preferredLocations: profile?.preferredLocations || [],
       preferredRoles: profile?.preferredRoles || [],

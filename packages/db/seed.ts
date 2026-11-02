@@ -34,11 +34,15 @@ export const COMPANIES: Array<{
   { name: "Publicis Sapient", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.publicissapient.com", careerPageUrl: "https://careers.publicissapient.com/" },
 
   // 26-50: Enterprise Tech, Semiconductor, Industrial & Engineering Tech
+  { name: "NVIDIA", atsType: AtsType.WORKDAY, atsIdentifier: "nvidia:NVIDIAExternalCareerSite:wd5", careerPageUrl: "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite" },
+  { name: "Adobe", atsType: AtsType.WORKDAY, atsIdentifier: "adobe:external_experienced:wd5", careerPageUrl: "https://adobe.wd5.myworkdayjobs.com/external_experienced" },
+  { name: "Salesforce", atsType: AtsType.WORKDAY, atsIdentifier: "salesforce:External_Career_Site:wd12", careerPageUrl: "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site" },
+  { name: "Autodesk", atsType: AtsType.WORKDAY, atsIdentifier: "autodesk:Ext:wd1", careerPageUrl: "https://autodesk.wd1.myworkdayjobs.com/Ext" },
   { name: "Amazon", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "amazon.jobs", careerPageUrl: "https://www.amazon.jobs/" },
   { name: "IBM", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "ibm.com/careers", careerPageUrl: "https://www.ibm.com/careers" },
   { name: "Oracle", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.oracle.com", careerPageUrl: "https://careers.oracle.com/" },
   { name: "SAP", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "jobs.sap.com", careerPageUrl: "https://jobs.sap.com/" },
-  { name: "Cisco", atsType: AtsType.WORKDAY, atsIdentifier: "cisco:external", careerPageUrl: "https://jobs.cisco.com/" },
+  { name: "Cisco", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "jobs.cisco.com", careerPageUrl: "https://jobs.cisco.com/" },
   { name: "HPE", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.hpe.com", careerPageUrl: "https://careers.hpe.com/" },
   { name: "Dell Technologies", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "jobs.dell.com", careerPageUrl: "https://jobs.dell.com/" },
   { name: "Honeywell", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.honeywell.com", careerPageUrl: "https://careers.honeywell.com/" },
@@ -60,30 +64,56 @@ export const COMPANIES: Array<{
   { name: "Micron Technology", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.micron.com", careerPageUrl: "https://careers.micron.com/" },
   { name: "Red Hat", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "redhat.com/jobs", careerPageUrl: "https://www.redhat.com/en/jobs" },
 
-  // 51-73: SaaS, Product, Consumer Tech & Platforms
+  // 51-73: SaaS, Product, Consumer Tech & Platforms (India & Global)
+  { name: "Razorpay", atsType: AtsType.GREENHOUSE, atsIdentifier: "razorpaysoftwareprivatelimited", careerPageUrl: "https://boards.greenhouse.io/razorpaysoftwareprivatelimited" },
+  { name: "InMobi", atsType: AtsType.GREENHOUSE, atsIdentifier: "inmobi", careerPageUrl: "https://job-boards.greenhouse.io/inmobi" },
+  { name: "Groww", atsType: AtsType.GREENHOUSE, atsIdentifier: "groww", careerPageUrl: "https://boards.greenhouse.io/groww" },
+  { name: "Rubrik", atsType: AtsType.GREENHOUSE, atsIdentifier: "rubrik", careerPageUrl: "https://boards.greenhouse.io/rubrik" },
+  { name: "HackerRank", atsType: AtsType.GREENHOUSE, atsIdentifier: "hackerrank", careerPageUrl: "https://boards.greenhouse.io/hackerrank" },
+  { name: "MongoDB", atsType: AtsType.GREENHOUSE, atsIdentifier: "mongodb", careerPageUrl: "https://boards.greenhouse.io/mongodb" },
+  { name: "Thoughtworks", atsType: AtsType.GREENHOUSE, atsIdentifier: "thoughtworks", careerPageUrl: "https://boards.greenhouse.io/thoughtworks" },
+  { name: "GitLab", atsType: AtsType.GREENHOUSE, atsIdentifier: "gitlab", careerPageUrl: "https://boards.greenhouse.io/gitlab" },
+  { name: "Stripe", atsType: AtsType.GREENHOUSE, atsIdentifier: "stripe", careerPageUrl: "https://boards.greenhouse.io/stripe" },
+  { name: "Figma", atsType: AtsType.GREENHOUSE, atsIdentifier: "figma", careerPageUrl: "https://boards.greenhouse.io/figma" },
+  { name: "Cloudflare", atsType: AtsType.GREENHOUSE, atsIdentifier: "cloudflare", careerPageUrl: "https://boards.greenhouse.io/cloudflare" },
+  { name: "Datadog", atsType: AtsType.GREENHOUSE, atsIdentifier: "datadog", careerPageUrl: "https://boards.greenhouse.io/datadog" },
+  { name: "Pinterest", atsType: AtsType.GREENHOUSE, atsIdentifier: "pinterest", careerPageUrl: "https://boards.greenhouse.io/pinterest" },
+  { name: "Airbnb", atsType: AtsType.GREENHOUSE, atsIdentifier: "airbnb", careerPageUrl: "https://boards.greenhouse.io/airbnb" },
+  { name: "Reddit", atsType: AtsType.GREENHOUSE, atsIdentifier: "reddit", careerPageUrl: "https://boards.greenhouse.io/reddit" },
+  { name: "Elastic", atsType: AtsType.GREENHOUSE, atsIdentifier: "elastic", careerPageUrl: "https://boards.greenhouse.io/elastic" },
+  { name: "Affirm", atsType: AtsType.GREENHOUSE, atsIdentifier: "affirm", careerPageUrl: "https://boards.greenhouse.io/affirm" },
+  { name: "Gusto", atsType: AtsType.GREENHOUSE, atsIdentifier: "gusto", careerPageUrl: "https://boards.greenhouse.io/gusto" },
+  { name: "Discord", atsType: AtsType.GREENHOUSE, atsIdentifier: "discord", careerPageUrl: "https://boards.greenhouse.io/discord" },
+  { name: "Vercel", atsType: AtsType.GREENHOUSE, atsIdentifier: "vercel", careerPageUrl: "https://boards.greenhouse.io/vercel" },
+  { name: "Spotify", atsType: AtsType.LEVER, atsIdentifier: "spotify", careerPageUrl: "https://jobs.lever.co/spotify" },
+  { name: "Palantir Technologies", atsType: AtsType.LEVER, atsIdentifier: "palantir", careerPageUrl: "https://jobs.lever.co/palantir" },
+  { name: "Linear", atsType: AtsType.ASHBY, atsIdentifier: "linear", careerPageUrl: "https://jobs.ashbyhq.com/linear" },
+  { name: "Ramp", atsType: AtsType.ASHBY, atsIdentifier: "ramp", careerPageUrl: "https://jobs.ashbyhq.com/ramp" },
+  { name: "Retool", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "retool.com/careers", careerPageUrl: "https://retool.com/careers" },
+  { name: "Notion", atsType: AtsType.ASHBY, atsIdentifier: "notion", careerPageUrl: "https://jobs.ashbyhq.com/notion" },
   { name: "Optum", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.unitedhealthgroup.com", careerPageUrl: "https://careers.unitedhealthgroup.com/" },
   { name: "BrowserStack", atsType: AtsType.WORKABLE, atsIdentifier: "browserstack", careerPageUrl: "https://www.browserstack.com/careers" },
   { name: "Freshworks", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.freshworks.com", careerPageUrl: "https://careers.freshworks.com/" },
   { name: "Zoho", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "zoho.com/careers", careerPageUrl: "https://www.zoho.com/careers/" },
-  { name: "Postman", atsType: AtsType.LEVER, atsIdentifier: "postman", careerPageUrl: "https://www.postman.com/company/careers/" },
-  { name: "Chargebee", atsType: AtsType.LEVER, atsIdentifier: "chargebee", careerPageUrl: "https://www.chargebee.com/careers/" },
+  { name: "Postman", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "postman.com/company/careers", careerPageUrl: "https://www.postman.com/company/careers/" },
+  { name: "Chargebee", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "chargebee.com/careers", careerPageUrl: "https://www.chargebee.com/careers/" },
   { name: "Whatfix", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "whatfix.com/careers", careerPageUrl: "https://whatfix.com/company/careers/" },
   { name: "Druva", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "druva.com/careers", careerPageUrl: "https://www.druva.com/about/careers" },
   { name: "Icertis", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "icertis.com/careers", careerPageUrl: "https://www.icertis.com/company/careers/" },
   { name: "HighRadius", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.highradius.com", careerPageUrl: "https://careers.highradius.com/" },
   { name: "Darwinbox", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "darwinbox.com/careers", careerPageUrl: "https://darwinbox.com/careers" },
   { name: "LeadSquared", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "leadsquared.com/careers", careerPageUrl: "https://www.leadsquared.com/careers/" },
-  { name: "CleverTap", atsType: AtsType.LEVER, atsIdentifier: "clevertap", careerPageUrl: "https://clevertap.com/careers/" },
+  { name: "CleverTap", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "clevertap.com/careers", careerPageUrl: "https://clevertap.com/careers/" },
   { name: "WebEngage", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "webengage.com/careers", careerPageUrl: "https://webengage.com/careers/" },
   { name: "Wingify", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "wingify.com/careers", careerPageUrl: "https://wingify.com/careers/" },
   { name: "Amagi", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "amagi.com/careers", careerPageUrl: "https://www.amagi.com/careers" },
-  { name: "Innovaccer", atsType: AtsType.LEVER, atsIdentifier: "innovaccer", careerPageUrl: "https://innovaccer.com/careers" },
-  { name: "InMobi", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "inmobi.com/careers", careerPageUrl: "https://www.inmobi.com/company/careers" },
+  { name: "Innovaccer", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "innovaccer.com/careers", careerPageUrl: "https://innovaccer.com/careers" },
   { name: "Info Edge", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "infoedge.in/careers", careerPageUrl: "https://www.infoedge.in/careers" },
   { name: "MakeMyTrip", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.makemytrip.com", careerPageUrl: "https://careers.makemytrip.com/" },
   { name: "Jio Platforms", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.jio.com", careerPageUrl: "https://careers.jio.com/" },
   { name: "PhonePe", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "phonepe.com/careers", careerPageUrl: "https://www.phonepe.com/careers/" },
-  { name: "Razorpay", atsType: AtsType.LEVER, atsIdentifier: "razorpay", careerPageUrl: "https://razorpay.com/jobs/" },
+  { name: "Meesho", atsType: AtsType.LEVER, atsIdentifier: "meesho", careerPageUrl: "https://jobs.lever.co/meesho" },
+  { name: "CRED", atsType: AtsType.LEVER, atsIdentifier: "cred", careerPageUrl: "https://jobs.lever.co/cred" },
 
   // 74-100: Fintech, Global Banking & Financial Services, Specialized Tech
   { name: "Fiserv", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.fiserv.com", careerPageUrl: "https://careers.fiserv.com/" },
@@ -136,21 +166,43 @@ export const COMPANIES: Array<{
   { name: "Maersk", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "maersk.com/careers", careerPageUrl: "https://www.maersk.com/careers" },
   { name: "Adani Group", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "adani.com/careers", careerPageUrl: "https://www.adani.com/careers" },
   { name: "Poshmark", atsType: AtsType.GREENHOUSE, atsIdentifier: "poshmark", careerPageUrl: "https://careers.poshmark.com/" },
+
+  // 122-141: Global Digital Engineering, IT Consulting & Enterprise Tech Solutions
+  { name: "Nagarro", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "nagarro.com/careers", careerPageUrl: "https://www.nagarro.com/en/careers/india" },
+  { name: "Genpact", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "genpact.com/careers", careerPageUrl: "https://www.genpact.com/careers" },
+  { name: "Virtusa", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "virtusa.com/careers", careerPageUrl: "https://www.virtusa.com/careers" },
+  { name: "Globant", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "globant.com/careers", careerPageUrl: "https://www.globant.com/careers" },
+  { name: "Happiest Minds", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "happiestminds.com/careers", careerPageUrl: "https://www.happiestminds.com/careers/" },
+  { name: "Cyient", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "cyient.com/careers", careerPageUrl: "https://www.cyient.com/careers" },
+  { name: "Mastek", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "mastek.com/careers", careerPageUrl: "https://www.mastek.com/careers/" },
+  { name: "Kyndryl", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "kyndryl.com/careers", careerPageUrl: "https://www.kyndryl.com/us/en/careers" },
+  { name: "Hitachi Digital Services", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.hitachi.com", careerPageUrl: "https://careers.hitachi.com/" },
+  { name: "Synechron", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "synechron.com/careers", careerPageUrl: "https://www.synechron.com/careers" },
+  { name: "Ness Digital Engineering", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "ness.com/careers", careerPageUrl: "https://www.ness.com/careers/" },
+  { name: "Sasken Technologies", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "sasken.com/careers", careerPageUrl: "https://www.sasken.com/careers/" },
+  { name: "Infogain", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "infogain.com/careers", careerPageUrl: "https://www.infogain.com/careers/" },
+  { name: "R Systems", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "rsystems.com/careers", careerPageUrl: "https://www.rsystems.com/careers/" },
+  { name: "Sutherland", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "sutherlandglobal.com/careers", careerPageUrl: "https://www.sutherlandglobal.com/careers" },
+  { name: "IGT Solutions", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "careers.igtsolutions.com", careerPageUrl: "https://careers.igtsolutions.com/" },
+  { name: "Atos", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "jobs.atos.net", careerPageUrl: "https://jobs.atos.net/" },
+  { name: "Tietoevry", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "tietoevry.com/careers", careerPageUrl: "https://www.tietoevry.com/en/careers/" },
+  { name: "Intellect Design Arena", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "intellectdesign.com/careers", careerPageUrl: "https://www.intellectdesign.com/careers/" },
+  { name: "Kongsberg Digital", atsType: AtsType.CUSTOM_FIRECRAWL, atsIdentifier: "kongsberg.com/careers", careerPageUrl: "https://www.kongsberg.com/careers/" },
 ];
 
 async function main() {
-  console.log("1. Cleaning up previous employer companies, jobs, and histories...");
-  await prisma.applicationStatusHistory.deleteMany({});
-  await prisma.jobSkill.deleteMany({});
-  await prisma.job.deleteMany({});
-  const deleted = await prisma.company.deleteMany({});
-  console.log(`Deleted ${deleted.count} old employer companies and associated jobs.`);
-
-  console.log(`2. Seeding company registry with ${COMPANIES.length} specified employer companies...`);
+  console.log(`Seeding and updating company registry with ${COMPANIES.length} specified employer companies...`);
   let count = 0;
   for (const comp of COMPANIES) {
-    await prisma.company.create({
-      data: {
+    await prisma.company.upsert({
+      where: { name: comp.name },
+      update: {
+        atsType: comp.atsType,
+        atsIdentifier: comp.atsIdentifier,
+        careerPageUrl: comp.careerPageUrl,
+        active: true,
+      },
+      create: {
         name: comp.name,
         atsType: comp.atsType,
         atsIdentifier: comp.atsIdentifier,
@@ -161,7 +213,7 @@ async function main() {
     count++;
   }
 
-  console.log(`Successfully seeded all ${count} employer companies!`);
+  console.log(`Successfully synced all ${count} employer companies!`);
   const total = await prisma.company.count();
   console.log(`Total companies in DB now: ${total}`);
 }

@@ -64,6 +64,44 @@ describe("JobFilterEngine: 3-Stage Filtering (Experience -> Location -> Skill & 
       );
       expect(res.passed).toBe(true);
     });
+
+    it("optimizes search with preferred experience range [minExperienceYears, maxExperienceYears]", () => {
+      // Preferred range: 0 to 2 years (e.g. Graduate Engineer Trainee / Associate Engineer)
+      const earlyCareerCriteria = {
+        minExperienceYears: 0,
+        maxExperienceYears: 2,
+        preferredRoles: ["Graduate Engineer Trainee", "Associate Engineer"],
+      };
+
+      // Job requiring 5+ years should be rejected by the agent
+      const seniorJob = {
+        title: "Senior Backend Architect",
+        description: "Requires minimum 5+ years of production experience",
+      };
+      const seniorResult = filterExperienceWise(seniorJob, 1, earlyCareerCriteria);
+      expect(seniorResult.passed).toBe(false);
+      expect(seniorResult.reason).toContain("exceeding candidate's preferred search maximum");
+
+      // Graduate role requiring 0-1 years should pass
+      const gradJob = {
+        title: "Graduate Engineer Trainee",
+        description: "0 to 1 years of experience, fresh engineering graduates welcome",
+      };
+      const gradResult = filterExperienceWise(gradJob, 1, earlyCareerCriteria);
+      expect(gradResult.passed).toBe(true);
+
+      // Mid-career applicant with minExperienceYears: 4 should reject internship
+      const midCriteria = {
+        minExperienceYears: 4,
+        maxExperienceYears: 8,
+      };
+      const internJob = {
+        title: "Software Engineering Intern",
+      };
+      const internResult = filterExperienceWise(internJob, 5, midCriteria);
+      expect(internResult.passed).toBe(false);
+      expect(internResult.reason).toContain("below candidate's preferred search minimum");
+    });
   });
 
   describe("Stage 2: Location-wise Filtering", () => {

@@ -21,11 +21,12 @@ export interface WorkdayResponse {
 }
 
 export async function fetchWorkdayJobs(
-  tenantConfig: string, // format: "tenant:site" or "tenant"
-  companyName: string
+  tenantConfig: string, // format: "tenant:site:cluster" or "tenant:site" or "tenant"
+  companyName: string,
+  searchText: string = ""
 ): Promise<NormalizedJob[]> {
-  const [tenant, site = "External"] = tenantConfig.split(":");
-  const url = `https://${tenant}.wd1.myworkdayjobs.com/wday/cxs/${tenant}/${site}/jobs`;
+  const [tenant, site = "External", cluster = "wd1"] = tenantConfig.split(":");
+  const url = `https://${tenant}.${cluster}.myworkdayjobs.com/wday/cxs/${tenant}/${site}/jobs`;
 
   let response: Response | null = null;
   let attempts = 0;
@@ -47,7 +48,7 @@ export async function fetchWorkdayJobs(
           appliedFacets: {},
           limit: 20,
           offset: 0,
-          searchText: "",
+          searchText,
         }),
         signal: controller.signal,
       });
@@ -70,8 +71,20 @@ export async function fetchWorkdayJobs(
   const rawJobs = data.jobPostings || [];
 
   return rawJobs.map((raw) => {
-    const locationStr = raw.locationsText || null;
-    const remote = isRemotePosition(locationStr, raw.title);
+    let locationStr = raw.locationsText || null;
+    // Extract actual location from externalPath if locationsText is generic (e.g. "3 Locations")
+    if (!locationStr || /^\d+\s+locations?$/i.test(locationStr.trim())) {
+      const pathMatch = raw.externalPath.match(/\/job\/([^/]+)/);
+      if (pathMatch && pathMatch[1]) {
+        const seg = pathMatch[1].replace(/[-_]+/g, ", ").trim();
+        // Handle common country-city patterns like "India, Bengaluru"
+        locationStr = seg;
+      }
+    }
+
+    const remote =
+      isRemotePosition(locationStr, raw.title) ||
+      Boolean(locationStr && /remote/i.test(locationStr));
     const { salaryMin, salaryMax } = extractSalaryRange(raw.title);
     const skills = extractSkillsFromText(raw.title);
     const externalId = raw.externalPath.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -85,7 +98,7 @@ export async function fetchWorkdayJobs(
       salaryMin,
       salaryMax,
       description: `${raw.title} at ${companyName} (${locationStr || (remote ? "Remote" : "Onsite")})`,
-      applicationUrl: `https://${tenant}.wd1.myworkdayjobs.com/en-US/${site}${raw.externalPath}`,
+      applicationUrl: `https://${tenant}.${cluster}.myworkdayjobs.com/en-US/${site}${raw.externalPath}`,
       source: "WORKDAY" as const,
       skills,
     };

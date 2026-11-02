@@ -1,0 +1,21 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Hard Shadow -->
+  <rect x="3" y="3" width="28" height="28" fill="#141414" rx="2" />
+  <!-- Main Badge -->
+  <rect x="1" y="1" width="28" height="28" fill="#B6F2C4" stroke="#141414" stroke-width="2" rx="2" />
+  <!-- Radar Crosshairs -->
+  <line x1="15" y1="4" x2="15" y2="26" stroke="#141414" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.6" />
+  <line x1="4" y1="15" x2="26" y2="15" stroke="#141414" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.6" />
+  <!-- Concentric Rings -->
+  <circle cx="15" cy="15" r="9" stroke="#141414" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.5" />
+  <circle cx="15" cy="15" r="5" stroke="#141414" stroke-width="1.2" />
+  <!-- Radar Target Corner Accents -->
+  <path d="M4 7 V4 H7" stroke="#141414" stroke-width="2" stroke-linecap="square" />
+  <path d="M26 7 V4 H23" stroke="#141414" stroke-width="2" stroke-linecap="square" />
+  <path d="M4 23 V26 H7" stroke="#141414" stroke-width="2" stroke-linecap="square" />
+  <path d="M26 23 V26 H23" stroke="#141414" stroke-width="2" stroke-linecap="square" />
+  <!-- Pulsing Core Diamond -->
+  <rect x="13" y="13" width="4" height="4" transform="rotate(45 15 15)" fill="#141414" stroke="#B6F2C4" stroke-width="1" />
+  <!-- Satellite Blip -->
+  <circle cx="21" cy="9" r="1.75" fill="#FFB4D8" stroke="#141414" stroke-width="1" />
+</svg>

@@ -31,6 +31,8 @@ export async function scrapeJobsWithFirecrawl(
 
   if (apiKey && !apiKey.startsWith("fc_placeholder")) {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
       const response = await fetch("https://api.firecrawl.dev/v1/scrape", {
         method: "POST",
         headers: {
@@ -41,7 +43,9 @@ export async function scrapeJobsWithFirecrawl(
           url: targetUrl,
           formats: ["markdown", "html"],
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (response.ok) {
         const result = (await response.json()) as FirecrawlScrapeResponse;
@@ -56,7 +60,7 @@ export async function scrapeJobsWithFirecrawl(
   if (!scrapedText) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      const timeout = setTimeout(() => controller.abort(), 3000);
       const res = await fetch(targetUrl, {
         headers: { "User-Agent": "JobIntelBot/1.0" },
         signal: controller.signal,
@@ -89,20 +93,48 @@ export async function scrapeJobsWithFirecrawl(
     uniqueTitles.push(`Software Engineer - ${companyName}`);
   }
 
+  // Detect candidate locations from scraped content or URL
+  const lowerText = scrapedText.toLowerCase();
+  const lowerUrl = targetUrl.toLowerCase();
+  let detectedLocation = "Bengaluru, India";
+
+  if (/bengaluru|bangalore/i.test(lowerText) || /bengaluru|bangalore/i.test(lowerUrl)) {
+    detectedLocation = "Bengaluru, India";
+  } else if (/hyderabad/i.test(lowerText) || /hyderabad/i.test(lowerUrl)) {
+    detectedLocation = "Hyderabad, India";
+  } else if (/pune/i.test(lowerText) || /pune/i.test(lowerUrl)) {
+    detectedLocation = "Pune, India";
+  } else if (/chennai/i.test(lowerText) || /chennai/i.test(lowerUrl)) {
+    detectedLocation = "Chennai, India";
+  } else if (/gurugram|gurgaon/i.test(lowerText) || /gurugram|gurgaon/i.test(lowerUrl)) {
+    detectedLocation = "Gurugram, India";
+  } else if (/noida/i.test(lowerText) || /noida/i.test(lowerUrl)) {
+    detectedLocation = "Noida, India";
+  } else if (/mumbai/i.test(lowerText) || /mumbai/i.test(lowerUrl)) {
+    detectedLocation = "Mumbai, India";
+  } else if (/kolkata/i.test(lowerText) || /kolkata/i.test(lowerUrl)) {
+    detectedLocation = "Kolkata, India";
+  } else if (/delhi/i.test(lowerText) || /delhi/i.test(lowerUrl)) {
+    detectedLocation = "Delhi NCR, India";
+  } else if (/india|\.in\/|\.in$|\/in-en\//i.test(lowerText) || /india|\.in\/|\.in$|\/in-en\//i.test(lowerUrl)) {
+    detectedLocation = "India";
+  }
+
   return uniqueTitles.map((title, index) => {
     const remote = isRemotePosition(null, title);
     const { salaryMin, salaryMax } = extractSalaryRange(scrapedText.slice(0, 5000));
     const skills = extractSkillsFromText(`${title}\n${scrapedText.slice(0, 5000)}`);
+    const jobLoc = remote ? "Remote" : detectedLocation;
 
     return {
       externalId: `fc_${index}_${Math.abs(hashString(title))}`,
       title: title.replace(/^[#*-]\s*/, "").trim(),
       companyName,
-      location: remote ? "Remote" : "Headquarters",
+      location: jobLoc,
       remote,
       salaryMin,
       salaryMax,
-      description: `Opportunity at ${companyName}: ${title}. Discovered via automated web crawling.`,
+      description: `Opportunity at ${companyName}: ${title}. Discovered via automated web crawling for ${jobLoc}.`,
       applicationUrl: targetUrl,
       source: "FIRECRAWL" as const,
       skills,

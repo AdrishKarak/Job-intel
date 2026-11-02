@@ -101,6 +101,8 @@ model CandidateProfile {
   user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   experienceYears    Float?
+  minExperienceYears Float?            @default(0)
+  maxExperienceYears Float?            @default(5)
   professionalSummary String?          @db.Text
   preferredRoles     String[]          @default([])
   preferredLocations String[]          @default([])

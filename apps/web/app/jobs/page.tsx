@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { trpc } from "@/lib/trpc/client";
-import { statusColorMap } from "@/lib/utils";
+import { statusColorMap, formatSalaryRangeInr } from "@/lib/utils";
 import { JobDetailPanel } from "./components/JobDetailPanel";
 import type { ApplicationStatus } from "@repo/shared-types";
 import {
@@ -21,22 +21,45 @@ import {
   Download,
   ExternalLink,
   Trash2,
+  X,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
+import {
+  CustomRadarIcon,
+  CustomSparkleIcon,
+  CustomIndiaIcon,
+  CustomGlobeIcon,
+  CustomExcelIcon,
+  CustomJobsIcon,
+} from "@/components/icons/CustomIcons";
 
 export default function JobsPage() {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
-  const [remoteOnly, setRemoteOnly] = useState(false);
+  const [locationFilter, setLocationFilter] = useState<"ALL" | "INDIA" | "REMOTE">("ALL");
   const [onlyMatching, setOnlyMatching] = useState(true);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(15);
+  const [pageSize, setPageSize] = useState(25);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{
+    type: "success" | "info" | "warning";
+    message: string;
+  } | null>(null);
+
+  const showNotification = (type: "success" | "info" | "warning", message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => {
+      setNotification((curr) => (curr?.message === message ? null : curr));
+    }, 7000);
+  };
 
   const filters = {
     role: search.trim() || undefined,
     status: selectedStatus === "ALL" ? undefined : (selectedStatus as ApplicationStatus),
-    remote: remoteOnly ? true : undefined,
+    remote: locationFilter === "REMOTE" ? true : undefined,
+    location: locationFilter === "INDIA" ? "India" : undefined,
     onlyMatching: onlyMatching,
   };
 
@@ -51,7 +74,26 @@ export default function JobsPage() {
     onSuccess: (res) => {
       utils.jobs.list.invalidate();
       utils.dashboard.getSummary.invalidate();
-      alert(`Polled company ATS boards: Discovered ${res.newJobsCount} matching jobs.`);
+      if (res.newJobsCount > 0) {
+        showNotification(
+          "success",
+          `Polled ATS boards: Discovered ${res.newJobsCount} new matching jobs (${res.updatedJobsCount} existing updated) across ${res.companiesQueried} employers.`
+        );
+      } else if (res.updatedJobsCount > 0) {
+        showNotification(
+          "info",
+          `Polled ATS boards: All matching jobs are currently up to date (${res.updatedJobsCount} postings refreshed across ${res.companiesQueried} employers).`
+        );
+      } else {
+        const total = res.totalMatchingInDb ?? "your";
+        showNotification(
+          "info",
+          `Polled ${res.companiesQueried} employer ATS boards: Postings are up to date (${total} matching positions active in your CRM).`
+        );
+      }
+    },
+    onError: (err) => {
+      showNotification("warning", `ATS Polling error: ${err.message}`);
     },
   });
 
@@ -59,7 +101,13 @@ export default function JobsPage() {
     onSuccess: (res) => {
       utils.jobs.list.invalidate();
       utils.dashboard.getSummary.invalidate();
-      alert(`Pruned ${res.deletedCount} irrelevant / non-matching jobs from your database.`);
+      showNotification(
+        "info",
+        `Pruned ${res.deletedCount} irrelevant / non-matching jobs from your database.`
+      );
+    },
+    onError: (err) => {
+      showNotification("warning", `Prune error: ${err.message}`);
     },
   });
 
@@ -67,14 +115,26 @@ export default function JobsPage() {
     onSuccess: (res) => {
       utils.jobs.list.invalidate();
       utils.dashboard.getSummary.invalidate();
-      alert(`Scored ${res.scoredCount} jobs against your profile.`);
+      showNotification(
+        "success",
+        `Scored ${res.scoredCount} jobs against your profile.`
+      );
+    },
+    onError: (err) => {
+      showNotification("warning", `Scoring error: ${err.message}`);
     },
   });
 
   const cleanupMutation = trpc.jobs.cleanupExpired.useMutation({
     onSuccess: (res) => {
       utils.jobs.list.invalidate();
-      alert(`Cleaned up ${res.deletedCount} expired jobs (>40 days).`);
+      showNotification(
+        "info",
+        `Cleaned up ${res.deletedCount} expired jobs (>40 days).`
+      );
+    },
+    onError: (err) => {
+      showNotification("warning", `Cleanup error: ${err.message}`);
     },
   });
 
@@ -108,8 +168,8 @@ export default function JobsPage() {
     setPage(1);
   };
 
-  const handleRemoteChange = (val: boolean) => {
-    setRemoteOnly(val);
+  const handleLocationFilterChange = (val: "ALL" | "INDIA" | "REMOTE") => {
+    setLocationFilter(val);
     setPage(1);
   };
 
@@ -122,72 +182,155 @@ export default function JobsPage() {
     <AppShell>
       <div className="space-y-8">
         {/* Header */}
-        <div className="border-b-4 border-ink pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="border-b-4 border-ink pb-6 flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-4xl md:text-5xl tracking-tight text-ink uppercase">
-              Jobs CRM
-            </h1>
-            <p className="mt-2 text-sm text-ink/80 font-medium">
-              Browse discovered positions, evaluate fit, and update application milestones.
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 bg-mint border-2 border-ink shadow-neo-sm font-black">
+                <Briefcase className="w-4 h-4 text-ink" />
+              </span>
+              <h1 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-tight text-ink uppercase">
+                Jobs CRM
+              </h1>
+            </div>
+            <p className="mt-2 text-xs sm:text-sm text-ink/80 font-medium max-w-2xl">
+              Real-time pipeline tracking, deterministic candidate matching, and application milestones across India tech hubs & global employers.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+
+          {/* Action Buttons Toolbar */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <button
               onClick={() => exportExcelMutation.mutate()}
               disabled={exportExcelMutation.isPending}
               className="flex items-center gap-1.5 px-3 py-2 bg-paper border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press"
+              title="Download verified job postings as Excel spreadsheet"
             >
-              <Download className={`w-3.5 h-3.5 ${exportExcelMutation.isPending ? "animate-bounce" : ""}`} />
+              <CustomExcelIcon size={15} />
               <span>{exportExcelMutation.isPending ? "Exporting..." : "Export Excel"}</span>
             </button>
+
             <button
               onClick={() => pruneMutation.mutate()}
               disabled={pruneMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-2 bg-coral/20 border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press text-ink"
+              className="flex items-center gap-1.5 px-3 py-2 bg-blush/30 border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press text-ink"
               title="Remove non-matching / irrelevant discovered jobs from database"
             >
               <Trash2 className={`w-3.5 h-3.5 ${pruneMutation.isPending ? "animate-spin" : ""}`} />
               <span>{pruneMutation.isPending ? "Pruning..." : "Prune Unmatched"}</span>
             </button>
+
             <button
               onClick={() => scoreAllMutation.mutate({})}
               disabled={scoreAllMutation.isPending}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-mint border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press"
+              title="Calculate deterministic candidate match scores for all discovered positions"
             >
-              <Sparkles className={`w-3.5 h-3.5 ${scoreAllMutation.isPending ? "animate-spin" : ""}`} />
-              <span>{scoreAllMutation.isPending ? "Scoring..." : "Score All Jobs"}</span>
+              <CustomSparkleIcon size={15} animated={scoreAllMutation.isPending} />
+              <span>{scoreAllMutation.isPending ? "Scoring..." : "Score All"}</span>
             </button>
+
             <button
               onClick={() => cleanupMutation.mutate()}
               disabled={cleanupMutation.isPending}
-              className="px-3.5 py-2 bg-paper border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press"
+              className="hidden sm:inline-flex px-3 py-2 bg-paper border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press"
+              title="Clean up postings expired beyond 40 days retention"
             >
-              Cleanup Stale Jobs (40d)
+              <span>Cleanup (40d)</span>
             </button>
+
             <button
               onClick={() => syncMutation.mutate()}
               disabled={syncMutation.isPending}
               className="flex items-center gap-2 px-4 py-2 bg-ink text-paper border-2 border-ink shadow-neo font-bold text-xs neo-shadow-press"
+              title="Poll Greenhouse, Lever, Ashby, Workday, and Indian tech career portals"
             >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`}
+              <CustomRadarIcon
+                size={16}
+                animated={syncMutation.isPending}
+                className={syncMutation.isPending ? "text-mint" : "text-paper"}
               />
               <span>{syncMutation.isPending ? "Polling ATS..." : "Sync Discovery"}</span>
             </button>
           </div>
         </div>
 
+        {/* Notification Banner */}
+        {notification && (
+          <div
+            className={`p-4 border-2 border-ink shadow-neo flex items-center justify-between transition-all ${
+              notification.type === "success"
+                ? "bg-mint text-ink"
+                : notification.type === "warning"
+                ? "bg-amber-100 text-ink"
+                : "bg-paper text-ink"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 font-bold text-xs font-mono">
+              {notification.type === "success" ? (
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-ink" />
+              ) : notification.type === "warning" ? (
+                <AlertCircle className="w-4 h-4 shrink-0 text-ink" />
+              ) : (
+                <Sparkles className="w-4 h-4 shrink-0 text-ink" />
+              )}
+              <span>{notification.message}</span>
+            </div>
+            <button
+              onClick={() => setNotification(null)}
+              className="p-1 hover:bg-neutral-200 border border-ink text-xs font-bold"
+              title="Dismiss"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Filter Bar */}
-        <div className="neo-card p-4 bg-paper flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-[220px] relative">
+        <div className="neo-card p-4 bg-paper flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-[240px] relative">
             <Search className="w-4 h-4 absolute left-3 top-3 text-ink/60" />
             <input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Search by role or company..."
+              placeholder="Search by role, company, or city (e.g. Stripe, Bengaluru, Software)..."
               className="w-full pl-9 pr-4 py-2 border-2 border-ink bg-paper text-xs font-mono focus:outline-none"
             />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 border-2 border-ink p-1 bg-neutral-100">
+            <button
+              onClick={() => handleLocationFilterChange("ALL")}
+              className={`px-2.5 py-1 text-xs font-bold uppercase transition-none ${
+                locationFilter === "ALL"
+                  ? "bg-ink text-paper shadow-neo-sm"
+                  : "bg-paper text-ink hover:bg-neutral-200"
+              }`}
+            >
+              All Regions
+            </button>
+            <button
+              onClick={() => handleLocationFilterChange("INDIA")}
+              className={`px-2.5 py-1 text-xs font-bold uppercase transition-none flex items-center gap-1.5 ${
+                locationFilter === "INDIA"
+                  ? "bg-ink text-paper shadow-neo-sm"
+                  : "bg-paper text-ink hover:bg-neutral-200"
+              }`}
+            >
+              <CustomIndiaIcon size={15} />
+              <span>India Hubs</span>
+            </button>
+            <button
+              onClick={() => handleLocationFilterChange("REMOTE")}
+              className={`px-2.5 py-1 text-xs font-bold uppercase transition-none flex items-center gap-1.5 ${
+                locationFilter === "REMOTE"
+                  ? "bg-ink text-paper shadow-neo-sm"
+                  : "bg-paper text-ink hover:bg-neutral-200"
+              }`}
+            >
+              <CustomGlobeIcon size={15} />
+              <span>Remote Only</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -211,26 +354,16 @@ export default function JobsPage() {
             </select>
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold uppercase text-ink">
-            <input
-              type="checkbox"
-              checked={remoteOnly}
-              onChange={(e) => handleRemoteChange(e.target.checked)}
-              className="w-4 h-4 accent-ink border-2 border-ink"
-            />
-            <span>Remote Only</span>
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold uppercase text-ink px-2.5 py-1 bg-mint/30 border border-ink shadow-neo-sm">
+          <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold uppercase text-ink px-2.5 py-2 bg-mint/30 border-2 border-ink shadow-neo-sm">
             <input
               type="checkbox"
               checked={onlyMatching}
               onChange={(e) => handleMatchingChange(e.target.checked)}
               className="w-4 h-4 accent-ink border-2 border-ink"
             />
-            <span className="flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-ink" />
-              <span>Match My Locations & Skills</span>
+            <span className="flex items-center gap-1.5">
+              <CustomSparkleIcon size={14} className="text-ink" />
+              <span>Match Profile Filter</span>
             </span>
           </label>
         </div>
@@ -288,14 +421,7 @@ export default function JobsPage() {
                         </td>
 
                         <td className="py-3.5 px-4 font-mono text-xs text-ink">
-                          {job.salaryMin || job.salaryMax ? (
-                            <span>
-                              {job.salaryMin ? `$${job.salaryMin.toLocaleString()}` : "$0"} -{" "}
-                              {job.salaryMax ? `$${job.salaryMax.toLocaleString()}` : "DOE"}
-                            </span>
-                          ) : (
-                            <span className="text-ink/40 font-mono">--</span>
-                          )}
+                          {formatSalaryRangeInr(job.salaryMin, job.salaryMax)}
                         </td>
 
                         <td className="py-3.5 px-4 font-mono text-xs">
@@ -358,13 +484,13 @@ export default function JobsPage() {
                   <tr>
                     <td colSpan={6} className="py-16 text-center space-y-3">
                       <div className="inline-block p-4 bg-paper border-2 border-ink shadow-neo">
-                        <Briefcase className="w-6 h-6 text-ink" />
+                        <CustomJobsIcon size={28} className="text-ink" />
                       </div>
                       <p className="font-display text-sm uppercase text-ink">
                         No Jobs Matching Your Criteria
                       </p>
                       <p className="text-xs font-mono text-ink/60">
-                        Click "Sync Discovery" to poll Greenhouse & Lever boards.
+                        Click "Sync Discovery" to poll Greenhouse, Lever, Ashby, Workday, and Indian Tech career platforms.
                       </p>
                     </td>
                   </tr>

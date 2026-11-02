@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { trpc } from "@/lib/trpc/client";
 import {
@@ -12,63 +13,84 @@ import {
   AlertCircle,
   Loader2,
   FileText,
-  Briefcase,
-  GraduationCap,
   Sparkles,
   MapPin,
-  Calendar,
-  Building,
+  DollarSign,
+  Globe,
   Sliders,
   Check,
+  GraduationCap,
+  Save,
+  RefreshCw,
+  ArrowRight,
 } from "lucide-react";
+import { EngineeringPositionSelector } from "@/components/profile/EngineeringPositionSelector";
+import { ExperienceRangeDoubleSlider } from "@/components/profile/ExperienceRangeDoubleSlider";
+import {
+  CustomProfileIcon,
+  CustomSparkleIcon,
+  CustomIndiaIcon,
+  CustomGlobeIcon,
+} from "@/components/icons/CustomIcons";
 
 export default function ProfilePage() {
   const utils = trpc.useUtils();
   const { data, isLoading } = trpc.profile.get.useQuery();
 
-  // Preferences form state
-  const [preferredRoles, setPreferredRoles] = useState("");
+  // Preferred search roles & experience window
+  const [preferredRoles, setPreferredRoles] = useState<string[]>([]);
+  const [minExpYears, setMinExpYears] = useState<number>(0);
+  const [maxExpYears, setMaxExpYears] = useState<number>(5);
+  const [globalSaveStatus, setGlobalSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [expSaveStatus, setExpSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [prefSaveStatus, setPrefSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+
+  // Other search preferences
   const [preferredLocations, setPreferredLocations] = useState("");
   const [minSalary, setMinSalary] = useState<number | "">("");
   const [maxSalary, setMaxSalary] = useState<number | "">("");
   const [remotePreference, setRemotePreference] = useState<
     "REMOTE" | "HYBRID" | "ONSITE" | "NO_PREFERENCE"
   >("NO_PREFERENCE");
-  const [experienceYears, setExperienceYears] = useState<number>(0);
-  const [expSaveStatus, setExpSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   // Manual skill state
   const [showSkillModal, setShowSkillModal] = useState(false);
   const [newSkillName, setNewSkillName] = useState("");
   const [newSkillProficiency, setNewSkillProficiency] = useState("Intermediate");
 
-  // Work experience state
-  const [showExpModal, setShowExpModal] = useState(false);
-  const [expCompany, setExpCompany] = useState("");
-  const [expTitle, setExpTitle] = useState("");
-  const [expLocation, setExpLocation] = useState("");
-  const [expStart, setExpStart] = useState("");
-  const [expEnd, setExpEnd] = useState("");
-  const [expHighlights, setExpHighlights] = useState("");
-
   // Upload & parsing state
   const [uploading, setUploading] = useState(false);
   const [parseJobId, setParseJobId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Instant discovery trigger state
+  const [syncStatus, setSyncStatus] = useState<"idle" | "running" | "done">("idle");
+  const [syncResultCount, setSyncResultCount] = useState<number | null>(null);
+
   // Sync profile data to form
   useEffect(() => {
     if (data?.profile) {
-      setPreferredRoles(data.profile.preferredRoles?.join(", ") || "");
+      if (Array.isArray(data.profile.preferredRoles)) {
+        setPreferredRoles(data.profile.preferredRoles);
+      }
       setPreferredLocations(data.profile.preferredLocations?.join(", ") || "");
       setMinSalary(data.profile.minSalary ?? "");
       setMaxSalary(data.profile.maxSalary ?? "");
       setRemotePreference(data.profile.remotePreference as any);
-      setExperienceYears(
-        typeof data.profile.experienceYears === "number"
-          ? Math.max(0, Math.min(100, Math.round(data.profile.experienceYears)))
-          : 0
-      );
+
+      const pMin =
+        typeof (data.profile as any).minExperienceYears === "number"
+          ? Math.max(0, Math.min(30, (data.profile as any).minExperienceYears))
+          : 0;
+      const pMax =
+        typeof (data.profile as any).maxExperienceYears === "number"
+          ? Math.max(pMin, Math.min(30, (data.profile as any).maxExperienceYears))
+          : typeof data.profile.experienceYears === "number"
+          ? Math.max(pMin, Math.min(30, Math.round(data.profile.experienceYears)))
+          : 5;
+
+      setMinExpYears(pMin);
+      setMaxExpYears(pMax);
     }
   }, [data]);
 
@@ -93,25 +115,6 @@ export default function ProfilePage() {
     },
   });
 
-  const addExperienceMutation = trpc.profile.addExperience.useMutation({
-    onSuccess: () => {
-      utils.profile.get.invalidate();
-      setShowExpModal(false);
-      setExpCompany("");
-      setExpTitle("");
-      setExpLocation("");
-      setExpStart("");
-      setExpEnd("");
-      setExpHighlights("");
-    },
-  });
-
-  const removeExperienceMutation = trpc.profile.removeExperience.useMutation({
-    onSuccess: () => {
-      utils.profile.get.invalidate();
-    },
-  });
-
   const createUploadUrlMutation = trpc.profile.createResumeUploadUrl.useMutation();
   const uploadResumeMutation = trpc.profile.uploadResume.useMutation();
   const confirmUpdateMutation = trpc.profile.confirmResumeUpdate.useMutation({
@@ -121,18 +124,36 @@ export default function ProfilePage() {
     },
   });
 
+  const syncDiscoveryMutation = trpc.jobs.syncDiscovery.useMutation({
+    onSuccess: (res) => {
+      setSyncStatus("done");
+      setSyncResultCount(res.newJobsCount);
+      utils.jobs.list.invalidate();
+      utils.dashboard.getSummary.invalidate();
+      setTimeout(() => setSyncStatus("idle"), 5000);
+    },
+    onError: (err: any) => {
+      console.error("Discovery sync error:", err);
+      setSyncStatus("idle");
+    },
+  });
+
+  const handleLaunchDiscovery = () => {
+    setSyncStatus("running");
+    syncDiscoveryMutation.mutate({});
+  };
+
   // Polling query for previewing parsed resume
-  const { data: previewData, isFetching: isPreviewFetching } =
-    trpc.profile.previewResumeUpdate.useQuery(
-      { parseJobId: parseJobId! },
-      {
-        enabled: Boolean(parseJobId),
-        refetchInterval: (query) => {
-          const status = query.state.data?.status;
-          return status === "ready" || status === "failed" ? false : 1500;
-        },
-      }
-    );
+  const { data: previewData } = trpc.profile.previewResumeUpdate.useQuery(
+    { parseJobId: parseJobId! },
+    {
+      enabled: Boolean(parseJobId),
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        return status === "ready" || status === "failed" ? false : 1500;
+      },
+    }
+  );
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -142,7 +163,7 @@ export default function ProfilePage() {
     setUploadError(null);
 
     try {
-      // 1. Get presigned upload URL
+      // 1. Presigned upload URL
       const { uploadUrl, storagePath } = await createUploadUrlMutation.mutateAsync({
         filename: file.name,
         contentType: file.type || "application/pdf",
@@ -163,11 +184,10 @@ export default function ProfilePage() {
           uploadSuccess = true;
         }
       } catch (directErr) {
-        console.warn("Direct upload failed (e.g. CORS or network policy), trying server fallback:", directErr);
+        console.warn("Direct upload failed, trying server fallback:", directErr);
       }
 
       if (!uploadSuccess) {
-        // Fallback to internal same-origin route
         const fallbackUrl = `/api/upload-resume-direct?path=${encodeURIComponent(storagePath)}`;
         const fallbackRes = await fetch(fallbackUrl, {
           method: "PUT",
@@ -195,33 +215,57 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSavePreferences = () => {
-    updateProfileMutation.mutate({
-      preferredRoles: preferredRoles
-        .split(",")
-        .map((r) => r.trim())
-        .filter(Boolean),
-      preferredLocations: preferredLocations
-        .split(",")
-        .map((l) => l.trim())
-        .filter(Boolean),
-      minSalary: typeof minSalary === "number" ? minSalary : null,
-      maxSalary: typeof maxSalary === "number" ? maxSalary : null,
-      remotePreference,
-      experienceYears: Number(experienceYears) || 0,
-    });
-  };
-
-  const handleSaveExperienceYears = (targetYears?: number) => {
-    const val = targetYears !== undefined ? targetYears : (Number(experienceYears) || 0);
+  const handleSaveWholeProfile = () => {
+    setGlobalSaveStatus("saving");
     setExpSaveStatus("saving");
+    setPrefSaveStatus("saving");
     updateProfileMutation.mutate(
       {
-        experienceYears: val,
-        preferredRoles: preferredRoles
+        preferredRoles,
+        preferredLocations: preferredLocations
           .split(",")
-          .map((r) => r.trim())
+          .map((l) => l.trim())
           .filter(Boolean),
+        minSalary: typeof minSalary === "number" ? minSalary : null,
+        maxSalary: typeof maxSalary === "number" ? maxSalary : null,
+        remotePreference,
+        minExperienceYears: minExpYears,
+        maxExperienceYears: maxExpYears,
+        experienceYears: maxExpYears,
+      },
+      {
+        onSuccess: () => {
+          setGlobalSaveStatus("saved");
+          setExpSaveStatus("saved");
+          setPrefSaveStatus("saved");
+          setTimeout(() => {
+            setGlobalSaveStatus("idle");
+            setExpSaveStatus("idle");
+            setPrefSaveStatus("idle");
+          }, 2500);
+        },
+        onError: () => {
+          setGlobalSaveStatus("idle");
+          setExpSaveStatus("idle");
+          setPrefSaveStatus("idle");
+        },
+      }
+    );
+  };
+
+  const handleSavePreferences = () => {
+    handleSaveWholeProfile();
+  };
+
+  const handleSaveExperienceRange = (min: number, max: number) => {
+    setExpSaveStatus("saving");
+    setGlobalSaveStatus("saving");
+    updateProfileMutation.mutate(
+      {
+        minExperienceYears: min,
+        maxExperienceYears: max,
+        experienceYears: max,
+        preferredRoles,
         preferredLocations: preferredLocations
           .split(",")
           .map((l) => l.trim())
@@ -233,59 +277,18 @@ export default function ProfilePage() {
       {
         onSuccess: () => {
           setExpSaveStatus("saved");
-          setTimeout(() => setExpSaveStatus("idle"), 2200);
+          setGlobalSaveStatus("saved");
+          setTimeout(() => {
+            setExpSaveStatus("idle");
+            setGlobalSaveStatus("idle");
+          }, 2200);
         },
         onError: () => {
           setExpSaveStatus("idle");
+          setGlobalSaveStatus("idle");
         },
       }
     );
-  };
-
-  const getSeniorityTier = (years: number) => {
-    if (years === 0) {
-      return {
-        label: "Fresher / Entry-Level",
-        badgeBg: "bg-mint text-ink",
-        desc: "0 Years · Targets fresh graduate roles, apprenticeships, and entry-level positions.",
-      };
-    } else if (years <= 2) {
-      return {
-        label: "Junior Associate",
-        badgeBg: "bg-sky text-ink",
-        desc: "1–2 Years · Targets junior engineer, developer associate, and early-career IC listings.",
-      };
-    } else if (years <= 5) {
-      return {
-        label: "Mid-Level Professional",
-        badgeBg: "bg-amber-200 text-ink",
-        desc: "3–5 Years · Focuses on core engineer / analyst listings and eliminates internships.",
-      };
-    } else if (years <= 8) {
-      return {
-        label: "Senior Professional",
-        badgeBg: "bg-violet-200 text-ink",
-        desc: "6–8 Years · Focuses on senior individual contributor & team lead positions.",
-      };
-    } else if (years <= 14) {
-      return {
-        label: "Lead / Staff Specialist",
-        badgeBg: "bg-rose-200 text-ink",
-        desc: "9–14 Years · Prioritizes staff, principal, and principal tech lead postings.",
-      };
-    } else if (years <= 24) {
-      return {
-        label: "Principal / Director",
-        badgeBg: "bg-emerald-200 text-ink",
-        desc: "15–24 Years · Aligns with principal engineers, engineering managers, and directors.",
-      };
-    } else {
-      return {
-        label: "Executive / Veteran (25+ Yrs)",
-        badgeBg: "bg-amber-300 text-ink",
-        desc: "25–100 Years · VP, CTO, Head of Engineering, and senior veteran levels.",
-      };
-    }
   };
 
   const handleConfirmParse = () => {
@@ -296,41 +299,61 @@ export default function ProfilePage() {
     });
   };
 
-  const experiences = (Array.isArray(data?.profile?.experienceSummary)
-    ? (data.profile.experienceSummary as Array<{
-        company: string;
-        title: string;
-        location?: string | null;
-        start: string;
-        end?: string | null;
-        highlights?: string[];
-      }>)
-    : []);
-
   return (
     <AppShell>
       <div className="space-y-8">
         {/* Header */}
         <div className="border-b-4 border-ink pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-4xl md:text-5xl tracking-tight text-ink uppercase">
-              Candidate Profile
-            </h1>
-            <p className="mt-2 text-sm text-ink/80 font-medium">
-              Manage your verified skills, experience, and search preferences.
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 bg-mint border-2 border-ink shadow-neo-sm font-black">
+                <CustomProfileIcon size={20} className="text-ink" />
+              </span>
+              <h1 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-tight text-ink uppercase">
+                Candidate Profile
+              </h1>
+            </div>
+            <p className="mt-2 text-xs sm:text-sm text-ink/80 font-medium max-w-2xl">
+              Configure target positions, preferred experience range, and search parameters to guide the autonomous job search agent.
             </p>
           </div>
-          <button
-            onClick={() => setShowSkillModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-ink text-paper border-2 border-ink shadow-neo-sm font-bold text-sm neo-shadow-press"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Manual Skill</span>
-          </button>
+          <div className="flex items-center gap-3 flex-wrap self-start md:self-auto">
+            <button
+              type="button"
+              onClick={() => setShowSkillModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-paper text-ink border-2 border-ink shadow-neo-sm font-bold text-sm neo-shadow-press"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Skill</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveWholeProfile}
+              disabled={updateProfileMutation.isPending || globalSaveStatus === "saving"}
+              className="flex items-center gap-2 px-6 py-2.5 bg-mint text-ink border-2 border-ink shadow-neo font-display font-black text-sm uppercase tracking-wide neo-shadow-press"
+            >
+              {globalSaveStatus === "saving" ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-ink" />
+                  <span>Saving...</span>
+                </>
+              ) : globalSaveStatus === "saved" ? (
+                <>
+                  <Check className="w-4 h-4 text-ink" />
+                  <span>Profile Saved!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 text-ink" />
+                  <span>Save Profile</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
-        {/* Resume Upload / In-progress Box */}
-        <div className="neo-card p-8 bg-paper border-2 border-ink space-y-4">
+        {/* Resume Skill Extraction Box */}
+        <div className="neo-card p-6 md:p-8 bg-paper border-2 border-ink space-y-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="p-4 bg-mint border-2 border-ink shadow-neo">
@@ -338,10 +361,10 @@ export default function ProfilePage() {
               </div>
               <div>
                 <h2 className="font-display text-xl uppercase text-ink">
-                  {data?.profile?.resumeParsedAt ? "Re-upload Resume" : "Upload Resume"}
+                  {data?.profile?.resumeParsedAt ? "Update Resume for Skill Extraction" : "Upload Resume for Skill Extraction"}
                 </h2>
                 <p className="text-xs font-mono text-ink/70">
-                  PDF or DOCX (max 10MB). File is parsed by Gemini and permanently deleted immediately.
+                  PDF or DOCX (max 10MB). Used solely by Gemini to extract verified tech skills for job matching. Permanently deleted immediately after parsing.
                 </p>
                 {data?.profile?.resumeParsedAt && (
                   <p className="text-xs font-mono text-ink/60 mt-1">
@@ -361,7 +384,7 @@ export default function ProfilePage() {
                 ) : (
                   <>
                     <FileText className="w-4 h-4" />
-                    <span>Select File</span>
+                    <span>Select Resume</span>
                   </>
                 )}
                 <input
@@ -388,10 +411,10 @@ export default function ProfilePage() {
               <Loader2 className="w-5 h-5 animate-spin text-ink" />
               <div>
                 <p className="text-sm font-bold text-ink">
-                  Extracting skills and experience with Gemini...
+                  Extracting verified skills with Gemini...
                 </p>
                 <p className="text-xs font-mono text-ink/80">
-                  Applying strict guardrails and formatting structured output.
+                  Parsing technical skills and domain categories.
                 </p>
               </div>
             </div>
@@ -416,7 +439,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* HITL Review / Preview Diff Modal / Panel (AC 2.1, AC 6.1, AC 6.2) */}
+        {/* HITL Review / Preview Diff Modal */}
         {parseJobId && previewData?.status === "ready" && previewData.extracted && (
           <div className="neo-card p-6 bg-paper border-4 border-ink shadow-neo-lg space-y-6 animate-in fade-in">
             <div className="flex items-center justify-between border-b-2 border-ink pb-4">
@@ -426,10 +449,10 @@ export default function ProfilePage() {
                 </span>
                 <div>
                   <h2 className="font-display text-xl uppercase text-ink">
-                    Review Extracted Profile (HITL Checkpoint)
+                    Review Extracted Skills (HITL Checkpoint)
                   </h2>
                   <p className="text-xs font-mono text-ink/70">
-                    Verify AI-extracted information before it overwrites your profile.
+                    Verify AI-extracted technical skills before updating your profile.
                   </p>
                 </div>
               </div>
@@ -450,7 +473,7 @@ export default function ProfilePage() {
                   ) : (
                     <CheckCircle2 className="w-4 h-4" />
                   )}
-                  <span>Confirm & Save Profile</span>
+                  <span>Confirm & Save Skills</span>
                 </button>
               </div>
             </div>
@@ -482,7 +505,7 @@ export default function ProfilePage() {
 
                 <div className="p-4 bg-sky/40 border-2 border-ink shadow-neo-sm space-y-2">
                   <h3 className="font-bold text-xs uppercase text-ink">
-                    Manual Skills Preserved (AC 6.2)
+                    Manual Skills Preserved
                   </h3>
                   <div className="flex flex-wrap gap-1.5">
                     {previewData.diff.manualSkillsPreserved.length > 0 ? (
@@ -505,43 +528,25 @@ export default function ProfilePage() {
             )}
 
             {/* Professional Summary */}
-            <div className="space-y-2">
-              <h3 className="font-bold text-xs uppercase text-ink">
-                Professional Summary
-              </h3>
-              <p className="p-3 bg-neutral-50 border-2 border-ink text-sm font-sans">
-                {previewData.extracted.professionalSummary || "No summary extracted."}
-              </p>
-            </div>
-
-            {/* Experience & Projects breakdown */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <h3 className="font-bold text-xs uppercase text-ink flex items-center gap-1.5">
-                  <Briefcase className="w-4 h-4" />
-                  <span>Work Experience</span>
+            {previewData.extracted.professionalSummary && (
+              <div className="space-y-2">
+                <h3 className="font-bold text-xs uppercase text-ink">
+                  Professional Summary
                 </h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {previewData.extracted.experienceSummary.map((exp, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3 bg-paper border-2 border-ink shadow-neo-sm text-xs"
-                    >
-                      <div className="font-bold text-ink">{exp.title}</div>
-                      <div className="text-ink/70 font-mono">
-                        {exp.company} ({exp.start} - {exp.end || "Present"})
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <p className="p-3 bg-neutral-50 border-2 border-ink text-sm font-sans">
+                  {previewData.extracted.professionalSummary}
+                </p>
               </div>
+            )}
 
+            {/* Education Summary */}
+            {previewData.extracted.educationSummary && previewData.extracted.educationSummary.length > 0 && (
               <div className="space-y-3">
                 <h3 className="font-bold text-xs uppercase text-ink flex items-center gap-1.5">
                   <GraduationCap className="w-4 h-4" />
                   <span>Education</span>
                 </h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {previewData.extracted.educationSummary.map((edu, idx) => (
                     <div
                       key={idx}
@@ -557,38 +562,66 @@ export default function ProfilePage() {
                   ))}
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
-        {/* Preferences & Skills Grid */}
+        {/* ──────────────────────────────────────────────────────────── */}
+        {/* SECTION 1: TARGET ENGINEERING POSITIONS (100+ DROPDOWN)     */}
+        {/* ──────────────────────────────────────────────────────────── */}
+        <div className="neo-card p-6 md:p-8 bg-paper border-2 border-ink space-y-4">
+          <div className="border-b-2 border-ink pb-4">
+            <div className="flex items-center gap-2">
+              <UserCircle className="w-5 h-5 text-ink" />
+              <h2 className="font-display text-xl uppercase text-ink">
+                Target Job Positions (140+ Engineering Suggestions)
+              </h2>
+            </div>
+            <p className="text-xs font-mono text-ink/70 mt-1">
+              Select or search positions like Graduate Engineer Trainee, Associate Engineer, Software Engineer, and 140+ specialized engineering roles. Add as many positions as you want the agent to search for.
+            </p>
+          </div>
+
+          <EngineeringPositionSelector
+            selectedRoles={preferredRoles}
+            onChange={(newRoles) => setPreferredRoles(newRoles)}
+          />
+        </div>
+
+        {/* ──────────────────────────────────────────────────────────── */}
+        {/* SECTION 2: PREFERRED EXPERIENCE RANGE (DOUBLE SLIDER)        */}
+        {/* ──────────────────────────────────────────────────────────── */}
+        <div id="experience-range-section">
+          <ExperienceRangeDoubleSlider
+            minYears={minExpYears}
+            maxYears={maxExpYears}
+            onChange={(min, max) => {
+              setMinExpYears(min);
+              setMaxExpYears(max);
+            }}
+            onSave={(min, max) => handleSaveExperienceRange(min, max)}
+            isSaving={updateProfileMutation.isPending}
+            saveStatus={expSaveStatus}
+          />
+        </div>
+
+        {/* ──────────────────────────────────────────────────────────── */}
+        {/* SECTION 3: LOCATION & SALARY PREFERENCES + VERIFIED SKILLS   */}
+        {/* ──────────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Preferences Column */}
+          {/* Location & Compensation Filters */}
           <div className="lg:col-span-1 neo-card p-6 bg-paper space-y-6">
             <div className="flex items-center gap-2 border-b-2 border-ink pb-3">
-              <UserCircle className="w-5 h-5 text-ink" />
+              <Globe className="w-5 h-5 text-ink" />
               <h2 className="font-display text-lg uppercase text-ink">
-                Search Preferences
+                Location & Compensation
               </h2>
             </div>
 
             <div className="space-y-4 text-xs font-sans">
               <div>
                 <label className="block font-bold text-ink mb-1 uppercase">
-                  Target Roles (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={preferredRoles}
-                  onChange={(e) => setPreferredRoles(e.target.value)}
-                  placeholder="e.g. Full Stack Engineer, Backend Lead"
-                  className="w-full px-3 py-2 border-2 border-ink bg-paper text-xs font-mono focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-ink mb-1 uppercase">
-                  Preferred Locations
+                  Preferred Locations (comma-separated)
                 </label>
                 <input
                   type="text"
@@ -602,7 +635,7 @@ export default function ProfilePage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-ink mb-1 uppercase">
-                    Min Salary ($)
+                    Min Expected Salary (₹)
                   </label>
                   <input
                     type="number"
@@ -610,13 +643,20 @@ export default function ProfilePage() {
                     onChange={(e) =>
                       setMinSalary(e.target.value ? Number(e.target.value) : "")
                     }
-                    placeholder="120000"
+                    placeholder="e.g. 1200000 (12 LPA)"
                     className="w-full px-3 py-2 border-2 border-ink bg-paper text-xs font-mono focus:outline-none"
                   />
+                  {typeof minSalary === "number" && minSalary > 0 && (
+                    <span className="text-[10px] text-ink/70 font-mono mt-1 block">
+                      {minSalary >= 100000
+                        ? `≈ ${(minSalary / 100000).toFixed(1)} LPA (₹${minSalary.toLocaleString("en-IN")})`
+                        : `₹${minSalary.toLocaleString("en-IN")}`}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <label className="block font-bold text-ink mb-1 uppercase">
-                    Max Salary ($)
+                    Max Expected Salary (₹)
                   </label>
                   <input
                     type="number"
@@ -624,9 +664,16 @@ export default function ProfilePage() {
                     onChange={(e) =>
                       setMaxSalary(e.target.value ? Number(e.target.value) : "")
                     }
-                    placeholder="180000"
+                    placeholder="e.g. 2500000 (25 LPA)"
                     className="w-full px-3 py-2 border-2 border-ink bg-paper text-xs font-mono focus:outline-none"
                   />
+                  {typeof maxSalary === "number" && maxSalary > 0 && (
+                    <span className="text-[10px] text-ink/70 font-mono mt-1 block">
+                      {maxSalary >= 100000
+                        ? `≈ ${(maxSalary / 100000).toFixed(1)} LPA (₹${maxSalary.toLocaleString("en-IN")})`
+                        : `₹${maxSalary.toLocaleString("en-IN")}`}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -637,7 +684,7 @@ export default function ProfilePage() {
                 <select
                   value={remotePreference}
                   onChange={(e) => setRemotePreference(e.target.value as any)}
-                  className="w-full px-3 py-2 border-2 border-ink bg-paper text-xs font-mono focus:outline-none"
+                  className="w-full px-3 py-2 border-2 border-ink bg-paper text-xs font-mono focus:outline-none cursor-pointer"
                 >
                   <option value="REMOTE">Remote Only</option>
                   <option value="HYBRID">Hybrid</option>
@@ -646,34 +693,50 @@ export default function ProfilePage() {
                 </select>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-bold text-ink uppercase">
-                    Work Experience (Scroller)
-                  </label>
-                  <span className="font-mono text-[11px] font-bold text-ink bg-mint px-2 py-0.5 border border-ink shadow-neo-xs">
-                    {experienceYears} Yrs
-                  </span>
-                </div>
-                <div className="p-2.5 bg-neutral-50 border-2 border-ink text-xs font-mono flex items-center justify-between">
-                  <span className="font-bold text-ink">
-                    {getSeniorityTier(experienceYears).label}
+              {/* Experience Window Summary Pill */}
+              <div className="p-3 bg-neutral-50 border-2 border-ink space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold uppercase text-ink/60">
+                    Active Experience Window:
                   </span>
                   <a
-                    href="#experience-scroller"
-                    className="underline font-bold text-ink/70 hover:text-ink text-[11px]"
+                    href="#experience-range-section"
+                    className="text-[10px] font-mono font-bold text-ink underline hover:text-mint"
                   >
-                    Adjust Scroller ↓
+                    Adjust Slider ↑
                   </a>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-mint border border-ink text-xs font-mono font-bold">
+                    {minExpYears} – {maxExpYears >= 30 ? "30+" : maxExpYears} Years
+                  </span>
+                  <span className="text-[11px] font-mono text-ink/70">
+                    ({preferredRoles.length} target roles selected)
+                  </span>
                 </div>
               </div>
 
               <button
                 onClick={handleSavePreferences}
-                disabled={updateProfileMutation.isPending}
-                className="w-full py-2.5 bg-ink text-paper border-2 border-ink shadow-neo font-bold text-xs uppercase neo-shadow-press"
+                disabled={updateProfileMutation.isPending || prefSaveStatus === "saving"}
+                className="w-full py-2.5 bg-ink text-paper border-2 border-ink shadow-neo font-bold text-xs uppercase neo-shadow-press flex items-center justify-center gap-2"
               >
-                {updateProfileMutation.isPending ? "Saving..." : "Save Preferences"}
+                {prefSaveStatus === "saving" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-mint" />
+                    <span>Saving All Preferences...</span>
+                  </>
+                ) : prefSaveStatus === "saved" ? (
+                  <>
+                    <Check className="w-4 h-4 text-mint" />
+                    <span>Preferences Saved!</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-mint" />
+                    <span>Save All Preferences</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -686,7 +749,7 @@ export default function ProfilePage() {
                   Verified Skills ({data?.skills?.length || 0})
                 </h2>
                 <p className="text-xs font-mono text-ink/70">
-                  Used directly by matching algorithms. Add missing skills to improve accuracy.
+                  Used directly by matching algorithms. Add missing skills to improve match accuracy.
                 </p>
               </div>
               <button
@@ -744,279 +807,147 @@ export default function ProfilePage() {
                   No Skills Extracted Yet
                 </p>
                 <p className="text-xs font-mono text-ink/60">
-                  Upload a resume above or click "+ Add Skill" to manually populate your profile.
+                  Upload a resume above or click "+ Add Skill" to manually populate your skill profile.
                 </p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Career Experience & History Section */}
-        <div id="experience-scroller" className="space-y-6">
-          {/* 1. Interactive Experience (Years) Scroller (0-100 limit) */}
-          <div className="neo-card p-6 md:p-8 bg-paper border-2 border-ink space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-ink pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Sliders className="w-5 h-5 text-ink" />
-                  <h2 className="font-display text-xl uppercase text-ink">
-                    Total Work Experience (Years)
-                  </h2>
-                </div>
-                <p className="text-xs font-mono text-ink/70 mt-1">
-                  Interactive scroller with a 0 to 100 limit. Powers Stage 1 of the 3-stage search & matching engine to eliminate over/under-qualified positions.
-                </p>
-              </div>
-
-              {/* Instant Save Button */}
-              <button
-                onClick={() => handleSaveExperienceYears()}
-                disabled={updateProfileMutation.isPending || expSaveStatus === "saving"}
-                className="flex items-center gap-2 px-5 py-2.5 bg-ink text-paper border-2 border-ink shadow-neo font-bold text-xs uppercase neo-shadow-press self-start sm:self-auto"
-              >
-                {expSaveStatus === "saving" ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-mint" />
-                ) : expSaveStatus === "saved" ? (
-                  <Check className="w-4 h-4 text-mint" />
-                ) : (
-                  <Sparkles className="w-4 h-4 text-mint" />
-                )}
-                <span>
-                  {expSaveStatus === "saving"
-                    ? "Saving..."
-                    : expSaveStatus === "saved"
-                    ? "Saved to Profile!"
-                    : `Save ${experienceYears} Years`}
+        {/* ──────────────────────────────────────────────────────────── */}
+        {/* SECTION 4: MASTER SAVE & SEARCH DISCOVERY CARD               */}
+        {/* ──────────────────────────────────────────────────────────── */}
+        <div className="neo-card p-6 md:p-8 bg-paper border-4 border-ink shadow-neo-lg space-y-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 border-b-2 border-ink pb-6">
+            <div className="space-y-1.5 text-center sm:text-left">
+              <div className="flex items-center justify-center sm:justify-start gap-2.5">
+                <span className="p-2 bg-mint border-2 border-ink shadow-neo-xs">
+                  <Save className="w-5 h-5 text-ink" />
                 </span>
-              </button>
+                <h2 className="font-display text-xl uppercase text-ink">
+                  Save Entire Profile & Hunting Parameters
+                </h2>
+              </div>
+              <p className="text-xs font-mono text-ink/70 max-w-xl">
+                Saves all configured target roles ({preferredRoles.length} selected), preferred experience range ({minExpYears}–{maxExpYears >= 30 ? "30+" : maxExpYears} years), location preferences, and compensation settings.
+              </p>
             </div>
 
-            {/* Display & Seniority Tier */}
-            {(() => {
-              const tier = getSeniorityTier(experienceYears);
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center p-4 bg-neutral-50/70 border-2 border-ink shadow-neo-sm">
-                  {/* Big Number */}
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-display text-5xl md:text-6xl font-black text-ink tracking-tight">
-                      {experienceYears}
-                    </span>
-                    <span className="font-display text-xl md:text-2xl font-black text-ink/60">
-                      YEARS
-                    </span>
-                  </div>
-
-                  {/* Seniority badge & explanation */}
-                  <div className="md:col-span-2 space-y-1.5 border-t md:border-t-0 md:border-l border-ink/20 pt-3 md:pt-0 md:pl-6">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`inline-flex items-center px-3 py-0.5 border-2 border-ink font-mono font-bold text-xs uppercase shadow-neo-xs ${tier.badgeBg}`}
-                      >
-                        {tier.label}
-                      </span>
-                      <span className="text-xs font-mono text-ink/60">
-                        (Range: 0–100 Yrs)
-                      </span>
-                    </div>
-                    <p className="text-xs font-sans text-ink/80 leading-relaxed">
-                      {tier.desc}
-                    </p>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Range Scroller Slider (0 to 100 limit) */}
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between text-xs font-mono font-bold text-ink/70">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 bg-mint border border-ink inline-block" />
-                  0 Yrs (Fresher)
-                </span>
-                <span>25 Yrs</span>
-                <span>50 Yrs (Mid-Century)</span>
-                <span>75 Yrs</span>
-                <span className="flex items-center gap-1">
-                  100 Yrs (Max Limit)
-                  <span className="w-2 h-2 bg-ink inline-block" />
-                </span>
-              </div>
-
-              {/* Interactive Range Input with Dynamic Fill */}
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={1}
-                value={experienceYears}
-                onChange={(e) => setExperienceYears(Number(e.target.value))}
-                className="neo-slider w-full"
-                style={{
-                  background: `linear-gradient(to right, #B6F2C4 0%, #B6F2C4 ${experienceYears}%, #f4f4f5 ${experienceYears}%, #f4f4f5 100%)`,
-                }}
-              />
-
-              {/* Quick Select Preset Buttons */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-2">
-                <span className="text-[11px] font-mono font-bold uppercase text-ink/60 mr-1">
-                  Quick Jump:
-                </span>
-                {[
-                  { label: "0y (Fresher)", val: 0 },
-                  { label: "1y", val: 1 },
-                  { label: "2y", val: 2 },
-                  { label: "3y (Mid)", val: 3 },
-                  { label: "5y", val: 5 },
-                  { label: "8y (Senior)", val: 8 },
-                  { label: "10y (Lead)", val: 10 },
-                  { label: "15y (Staff)", val: 15 },
-                  { label: "20y (Principal)", val: 20 },
-                  { label: "30y+", val: 30 },
-                  { label: "50y", val: 50 },
-                  { label: "100y", val: 100 },
-                ].map((preset) => (
-                  <button
-                    key={preset.val}
-                    type="button"
-                    onClick={() => setExperienceYears(preset.val)}
-                    className={`px-2.5 py-1 text-xs font-mono font-bold border-2 border-ink neo-shadow-press transition-colors ${
-                      experienceYears === preset.val
-                        ? "bg-ink text-paper shadow-none"
-                        : "bg-paper text-ink shadow-neo-xs hover:bg-neutral-100"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={handleSaveWholeProfile}
+              disabled={updateProfileMutation.isPending || globalSaveStatus === "saving"}
+              className="w-full sm:w-auto px-8 py-3.5 bg-ink text-paper border-2 border-ink shadow-neo font-display font-black text-sm uppercase tracking-wider neo-shadow-press flex items-center justify-center gap-2.5 shrink-0"
+            >
+              {globalSaveStatus === "saving" ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin text-mint" />
+                  <span>Saving Whole Profile...</span>
+                </>
+              ) : globalSaveStatus === "saved" ? (
+                <>
+                  <Check className="w-5 h-5 text-mint" />
+                  <span>Whole Profile Saved!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5 text-mint" />
+                  <span>Save Whole Profile</span>
+                </>
+              )}
+            </button>
           </div>
 
-          {/* 2. Redesigned Career History & Operational Areas Timeline */}
-          <div className="neo-card p-6 md:p-8 bg-paper border-2 border-ink space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-ink pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-5 h-5 text-ink" />
-                  <h2 className="font-display text-xl uppercase text-ink">
-                    Work History & Operational Areas ({experiences.length})
-                  </h2>
-                </div>
-                <p className="text-xs font-mono text-ink/70 mt-1">
-                  Chronological career timeline with designated geographical areas and roles.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowExpModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-ink text-paper border-2 border-ink shadow-neo font-bold text-xs uppercase neo-shadow-press self-start sm:self-auto"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Position</span>
-              </button>
+          {/* Next Steps: Autonomous vs Instant Job Search */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-neutral-50 border-2 border-ink">
+            <div className="space-y-1 text-center sm:text-left">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-mint border border-ink text-[10px] font-mono font-bold uppercase">
+                Autonomous Agent Active
+              </span>
+              <p className="text-xs font-mono text-ink font-bold">
+                When does the agent search?
+              </p>
+              <p className="text-xs font-sans text-ink/70">
+                • <strong>Automatic:</strong> Searches all 141 company ATS boards automatically every <strong>6 hours</strong>.
+                <br />
+                • <strong>Instant:</strong> You can trigger an immediate search right now to fetch matching openings immediately.
+              </p>
             </div>
 
-            {isLoading ? (
-              <div className="py-12 text-center text-xs font-mono text-ink/70">
-                Loading career timeline...
-              </div>
-            ) : experiences.length > 0 ? (
-              <div className="relative border-l-4 border-ink ml-3 md:ml-4 pl-6 md:pl-8 space-y-6 my-2">
-                {experiences.map((exp, idx) => (
-                  <div key={idx} className="relative group">
-                    {/* Indexed Timeline node */}
-                    <div className="absolute -left-[37px] md:-left-[45px] top-4 w-7 h-7 bg-paper border-2 border-ink rounded-full flex items-center justify-center font-mono font-black text-xs text-ink shadow-neo-xs group-hover:bg-mint transition-colors">
-                      {idx + 1}
-                    </div>
+            <div className="flex items-center gap-3 flex-wrap justify-center sm:justify-end shrink-0">
+              <button
+                type="button"
+                onClick={handleLaunchDiscovery}
+                disabled={syncDiscoveryMutation.isPending || syncStatus === "running"}
+                className="px-5 py-2.5 bg-mint text-ink border-2 border-ink shadow-neo-sm font-display font-black text-xs uppercase neo-shadow-press flex items-center gap-2"
+              >
+                {syncStatus === "running" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-ink" />
+                    <span>Searching 141 Companies...</span>
+                  </>
+                ) : syncStatus === "done" ? (
+                  <>
+                    <Check className="w-4 h-4 text-ink" />
+                    <span>Discovered {syncResultCount ?? 0} Matching Jobs!</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 text-ink" />
+                    <span>Search Jobs Now (Instant)</span>
+                  </>
+                )}
+              </button>
 
-                    {/* Timeline Position Card */}
-                    <div className="p-5 bg-paper border-2 border-ink shadow-neo space-y-3 hover:translate-x-0.5 transition-transform">
-                      {/* Top Row: Title, Company, Delete */}
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 border-b border-ink/15 pb-3">
-                        <div className="space-y-1.5">
-                          <h3 className="font-display text-base md:text-lg uppercase text-ink tracking-tight font-black">
-                            {exp.title}
-                          </h3>
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-paper border-2 border-ink text-xs font-mono font-bold shadow-neo-xs">
-                            <Building className="w-3.5 h-3.5 text-ink/70" />
-                            <span>{exp.company}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 self-end sm:self-start">
-                          <button
-                            onClick={() => removeExperienceMutation.mutate({ index: idx })}
-                            disabled={removeExperienceMutation.isPending}
-                            className="p-1.5 text-ink/40 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-ink transition-none"
-                            title="Remove this position"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Metadata Row: Area / Location Badge + Timeline Range */}
-                      <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-                        {exp.location && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky/30 border border-ink font-bold text-ink shadow-neo-xs">
-                            <MapPin className="w-3.5 h-3.5 text-ink" />
-                            <span>{exp.location}</span>
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-paper border border-ink text-ink font-mono font-medium">
-                          <Calendar className="w-3.5 h-3.5 text-ink/60" />
-                          <span>
-                            {exp.start} — {exp.end || "Present"}
-                          </span>
-                        </span>
-                      </div>
-
-                      {/* Highlights & Scope */}
-                      {exp.highlights && exp.highlights.length > 0 && (
-                        <div className="pt-2 border-t border-ink/10 space-y-1.5">
-                          {exp.highlights.map((hl, hIdx) => (
-                            <div
-                              key={hIdx}
-                              className="flex items-start gap-2 text-xs font-sans text-ink/90 leading-relaxed"
-                            >
-                              <span className="text-mint font-black select-none text-sm leading-none mt-0.5">
-                                ▸
-                              </span>
-                              <span>{hl}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-10 border-2 border-dashed border-ink/40 text-center space-y-3 bg-neutral-50/50">
-                <div className="w-12 h-12 bg-mint border-2 border-ink shadow-neo-sm mx-auto flex items-center justify-center">
-                  <Briefcase className="w-6 h-6 text-ink" />
-                </div>
-                <div>
-                  <h3 className="font-display text-base uppercase text-ink">
-                    No Work Experience Logged Yet
-                  </h3>
-                  <p className="text-xs font-mono text-ink/70 max-w-md mx-auto mt-1">
-                    Add previous positions, companies, and geographical operational areas. You can also upload your resume above to extract past roles automatically.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowExpModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-paper border-2 border-ink shadow-neo-sm font-bold text-xs uppercase neo-shadow-press"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add First Position</span>
-                </button>
-              </div>
-            )}
+              <Link
+                href="/jobs"
+                className="px-4 py-2.5 bg-paper text-ink border-2 border-ink shadow-neo-sm font-bold text-xs uppercase neo-shadow-press flex items-center gap-1.5 hover:bg-neutral-100"
+              >
+                <span>View Jobs CRM</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Manual Add Skill Modal (HITL #4) */}
+      {/* Floating Save Toast Notification */}
+      {globalSaveStatus === "saved" && (
+        <div className="fixed bottom-6 right-6 z-50 bg-mint border-3 border-ink shadow-neo-lg p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 max-w-lg animate-in slide-in-from-bottom-4">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 bg-ink text-paper flex items-center justify-center font-black shrink-0">
+              <Check className="w-4 h-4 text-mint" />
+            </div>
+            <div>
+              <p className="font-display text-xs uppercase text-ink font-black">
+                Profile Saved Successfully!
+              </p>
+              <p className="text-[11px] font-mono text-ink/80">
+                Agent hunts every 6 hours, or click Search Now for instant discovery.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <button
+              onClick={handleLaunchDiscovery}
+              disabled={syncStatus === "running"}
+              className="px-3 py-1.5 bg-ink text-paper border border-ink text-xs font-bold shadow-neo-xs flex items-center gap-1.5 neo-shadow-press"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncStatus === "running" ? "animate-spin text-mint" : ""}`} />
+              <span>{syncStatus === "running" ? "Searching..." : "Search Now"}</span>
+            </button>
+            <Link
+              href="/jobs"
+              className="px-3 py-1.5 bg-paper text-ink border border-ink text-xs font-bold shadow-neo-xs flex items-center gap-1 hover:bg-neutral-100"
+            >
+              <span>Jobs CRM</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Add Skill Modal */}
       {showSkillModal && (
         <div className="fixed inset-0 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="neo-card p-6 bg-paper max-w-sm w-full space-y-4 border-4 border-ink shadow-neo-lg">
@@ -1035,7 +966,7 @@ export default function ProfilePage() {
                   type="text"
                   value={newSkillName}
                   onChange={(e) => setNewSkillName(e.target.value)}
-                  placeholder="e.g. Docker, Kafka, Go"
+                  placeholder="e.g. Docker, Kafka, Go, Rust"
                   className="w-full px-3 py-2 border-2 border-ink text-sm font-mono focus:outline-none"
                 />
               </div>
@@ -1076,137 +1007,6 @@ export default function ProfilePage() {
                 className="px-5 py-2 bg-ink text-paper border-2 border-ink text-xs font-bold shadow-neo neo-shadow-press"
               >
                 {addSkillMutation.isPending ? "Adding..." : "Add Skill"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Experience Modal */}
-      {showExpModal && (
-        <div className="fixed inset-0 bg-ink/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="neo-card p-6 bg-paper max-w-md w-full space-y-4 border-4 border-ink shadow-neo-lg">
-            <div className="flex items-center justify-between border-b-2 border-ink pb-3">
-              <h3 className="font-display text-lg uppercase text-ink">
-                Add Work Experience & Area
-              </h3>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold uppercase mb-1">
-                  Company Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={expCompany}
-                  onChange={(e) => setExpCompany(e.target.value)}
-                  placeholder="e.g. Acme Corp or Stripe"
-                  className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase mb-1">
-                  Job Title <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={expTitle}
-                  onChange={(e) => setExpTitle(e.target.value)}
-                  placeholder="e.g. Senior Software Engineer"
-                  className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase mb-1">
-                  Area / Location (City, State, or Country)
-                </label>
-                <input
-                  type="text"
-                  value={expLocation}
-                  onChange={(e) => setExpLocation(e.target.value)}
-                  placeholder="e.g. San Francisco, CA or Remote"
-                  className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase mb-1">
-                    Start Period <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={expStart}
-                    onChange={(e) => setExpStart(e.target.value)}
-                    placeholder="e.g. 2021 or Jan 2021"
-                    className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase mb-1">
-                    End Period (or Present)
-                  </label>
-                  <input
-                    type="text"
-                    value={expEnd}
-                    onChange={(e) => setExpEnd(e.target.value)}
-                    placeholder="e.g. Present or 2024"
-                    className="w-full px-3 py-2 border-2 border-ink text-xs font-mono focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase mb-1">
-                  Key Highlights / Responsibilities (comma or newline separated)
-                </label>
-                <textarea
-                  rows={3}
-                  value={expHighlights}
-                  onChange={(e) => setExpHighlights(e.target.value)}
-                  placeholder="e.g. Built real-time matching engine&#10;Scaled backend services to 10M daily requests"
-                  className="w-full px-3 py-2 border-2 border-ink text-xs font-sans focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t-2 border-ink">
-              <button
-                onClick={() => setShowExpModal(false)}
-                className="px-4 py-2 border-2 border-ink text-xs font-bold shadow-neo-sm neo-shadow-press"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (expCompany.trim() && expTitle.trim() && expStart.trim()) {
-                    const parsedHighlights = expHighlights
-                      .split(/[\n,]/)
-                      .map((h) => h.trim())
-                      .filter(Boolean);
-
-                    addExperienceMutation.mutate({
-                      company: expCompany.trim(),
-                      title: expTitle.trim(),
-                      location: expLocation.trim() || undefined,
-                      start: expStart.trim(),
-                      end: expEnd.trim() || undefined,
-                      highlights: parsedHighlights.length > 0 ? parsedHighlights : undefined,
-                    });
-                  }
-                }}
-                disabled={
-                  !expCompany.trim() ||
-                  !expTitle.trim() ||
-                  !expStart.trim() ||
-                  addExperienceMutation.isPending
-                }
-                className="px-5 py-2 bg-ink text-paper border-2 border-ink text-xs font-bold shadow-neo neo-shadow-press disabled:opacity-50"
-              >
-                {addExperienceMutation.isPending ? "Saving..." : "Add Experience"}
               </button>
             </div>
           </div>

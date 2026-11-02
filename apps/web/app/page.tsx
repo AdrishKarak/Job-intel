@@ -23,6 +23,13 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import {
+  CustomDashboardIcon,
+  CustomJobsIcon,
+  CustomSparkleIcon,
+  CustomRadarIcon,
+  CustomIndiaIcon,
+} from "@/components/icons/CustomIcons";
 
 export default function DashboardPage() {
   const [matchesPage, setMatchesPage] = useState(1);
@@ -56,14 +63,19 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="border-b-4 border-ink pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h1 className="font-display text-4xl md:text-5xl tracking-tight text-ink uppercase">
-              Dashboard
-            </h1>
-            <p className="mt-2 text-sm text-ink/80 font-medium">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 bg-sky border-2 border-ink shadow-neo-sm">
+                <CustomDashboardIcon size={20} className="text-ink" />
+              </span>
+              <h1 className="font-display text-3xl sm:text-4xl md:text-5xl tracking-tight text-ink uppercase">
+                Dashboard
+              </h1>
+            </div>
+            <p className="mt-2 text-xs sm:text-sm text-ink/80 font-medium">
               Real-time job intelligence, pipeline tracking & match analytics.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={() => refetch()}
               disabled={isLoading || isRefetching}
@@ -83,15 +95,15 @@ export default function DashboardPage() {
         </div>
 
         {/* Bento Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {/* Card 1: Jobs Discovered */}
-          <div className="neo-card p-6 bg-paper">
+          <div className="neo-card p-5 sm:p-6 bg-paper">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-ink/70">
                 Jobs Discovered
               </span>
               <span className="p-2 bg-sky border-2 border-ink shadow-neo-sm">
-                <Briefcase className="w-4 h-4 text-ink" />
+                <CustomJobsIcon size={18} className="text-ink" />
               </span>
             </div>
             <div className="mt-4 flex items-baseline gap-2">
@@ -143,13 +155,13 @@ export default function DashboardPage() {
           </div>
 
           {/* Card 4: Average Fit */}
-          <div className="neo-card p-6 bg-paper">
+          <div className="neo-card p-5 sm:p-6 bg-paper">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-ink/70">
                 Avg Match Score
               </span>
               <span className="p-2 bg-yellow-300 border-2 border-ink shadow-neo-sm">
-                <Sparkles className="w-4 h-4 text-ink" />
+                <CustomSparkleIcon size={18} className="text-ink" />
               </span>
             </div>
             <div className="mt-4 flex items-baseline gap-2">
@@ -293,7 +305,7 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-ink pb-4">
             <div>
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-ink" />
+                <CustomSparkleIcon size={20} className="text-ink" />
                 <h2 className="font-display text-lg uppercase text-ink">
                   Curated Top Job Matches
                 </h2>

@@ -33,11 +33,23 @@ export async function generateJobsExcel(
   const rows: JobExportRow[] = (jobs as any[]).map((job) => {
     let comp = "Not specified";
     if (job.salaryMin && job.salaryMax) {
-      comp = `$${job.salaryMin.toLocaleString()} - $${job.salaryMax.toLocaleString()}`;
+      if (job.salaryMin >= 100_000 || job.salaryMax >= 100_000) {
+        comp = `₹${(job.salaryMin / 100_000).toFixed(1)} - ₹${(job.salaryMax / 100_000).toFixed(1)} LPA`;
+      } else {
+        comp = `₹${job.salaryMin.toLocaleString("en-IN")} - ₹${job.salaryMax.toLocaleString("en-IN")}`;
+      }
     } else if (job.salaryMin) {
-      comp = `From $${job.salaryMin.toLocaleString()}`;
+      if (job.salaryMin >= 100_000) {
+        comp = `From ₹${(job.salaryMin / 100_000).toFixed(1)} LPA`;
+      } else {
+        comp = `From ₹${job.salaryMin.toLocaleString("en-IN")}`;
+      }
     } else if (job.salaryMax) {
-      comp = `Up to $${job.salaryMax.toLocaleString()}`;
+      if (job.salaryMax >= 100_000) {
+        comp = `Up to ₹${(job.salaryMax / 100_000).toFixed(1)} LPA`;
+      } else {
+        comp = `Up to ₹${job.salaryMax.toLocaleString("en-IN")}`;
+      }
     }
 
     return {

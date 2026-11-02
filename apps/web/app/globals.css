@@ -303,3 +303,66 @@ input[type="range"].neo-slider::-moz-range-thumb:hover {
   background: #9ee6b0;
 }
 
+/* ==========================================================================
+   Neobrutalist Dual Range Slider (Double Slider for Preferred Experience)
+   ========================================================================== */
+
+.neo-double-slider-input {
+  position: absolute;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  outline: none;
+  margin: 0;
+  top: 0;
+  left: 0;
+}
+
+.neo-double-slider-input::-webkit-slider-thumb {
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  background: var(--mint);
+  border: 2.5px solid var(--ink);
+  box-shadow: 2px 2px 0px var(--ink);
+  cursor: grab;
+  transition: transform 0.1s ease, background-color 0.1s ease;
+  position: relative;
+  z-index: 30;
+}
+
+.neo-double-slider-input::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: #9ee6b0;
+}
+
+.neo-double-slider-input::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(0.95);
+  box-shadow: 1px 1px 0px var(--ink);
+}
+
+.neo-double-slider-input::-moz-range-thumb {
+  pointer-events: auto;
+  width: 26px;
+  height: 26px;
+  background: var(--mint);
+  border: 2.5px solid var(--ink);
+  box-shadow: 2px 2px 0px var(--ink);
+  border-radius: 0px;
+  cursor: grab;
+  position: relative;
+  z-index: 30;
+}
+
+.neo-double-slider-input::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  background: #9ee6b0;
+}
+
+

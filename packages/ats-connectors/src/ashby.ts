@@ -38,15 +38,13 @@ export async function fetchAshbyJobs(
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
 
-      // Ashby posting API accepts POST with {} or GET
+      // Ashby public job board endpoint accepts GET requests
       response = await fetch(url, {
-        method: "POST",
+        method: "GET",
         headers: {
-          "Content-Type": "application/json",
           Accept: "application/json",
           "User-Agent": "JobIntelBot/1.0",
         },
-        body: JSON.stringify({}),
         signal: controller.signal,
       });
 

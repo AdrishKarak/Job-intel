@@ -49,6 +49,8 @@ export type ResumeParsedOutput = z.infer<typeof ResumeParsedOutputSchema>;
 
 export const CandidateProfileUpdateInputSchema = z.object({
   experienceYears: z.number().nullable().optional(),
+  minExperienceYears: z.number().nullable().optional(),
+  maxExperienceYears: z.number().nullable().optional(),
   professionalSummary: z.string().nullable().optional(),
   preferredRoles: z.array(z.string()).optional(),
   preferredLocations: z.array(z.string()).optional(),
