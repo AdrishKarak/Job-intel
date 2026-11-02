@@ -169,5 +169,17 @@ describe("JobFilterEngine: 3-Stage Filtering (Experience -> Location -> Skill & 
       expect(result.failedStage).toBeUndefined();
       expect(result.reasons.length).toBe(0);
     });
+
+    it("respects 0 years experience as fresher/entry-level without overriding with history", () => {
+      const fresherProfile = {
+        experienceYears: 0,
+        experienceSummary: [{ company: "Old Co", title: "Intern", start: "2020", end: "2021" }],
+      };
+      expect(resolveCandidateExperienceYears(fresherProfile)).toBe(0);
+    });
+
+    it("respects high experience scroller settings up to 100 years", () => {
+      expect(resolveCandidateExperienceYears({ experienceYears: 100 })).toBe(100);
+    });
   });
 });

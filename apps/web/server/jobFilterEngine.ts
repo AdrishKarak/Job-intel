@@ -57,7 +57,7 @@ const UNRELATED_DOMAINS_REGEX =
  * Computes candidate total experience years from experienceYears or experienceSummary
  */
 export function resolveCandidateExperienceYears(criteria: CandidateFitCriteria): number {
-  if (typeof criteria.experienceYears === "number" && criteria.experienceYears > 0) {
+  if (typeof criteria.experienceYears === "number" && criteria.experienceYears >= 0) {
     return criteria.experienceYears;
   }
 
