@@ -15,6 +15,7 @@ import {
   CITY_SYNONYMS,
   type CandidateFitCriteria,
 } from "@/server/jobFilterEngine";
+import { getUserFitData } from "@/server/userFitCache";
 
 export const jobsRouter = router({
   // 1. List jobs for authenticated user with filters and pagination
@@ -98,24 +99,9 @@ export const jobsRouter = router({
 
       // Filter only jobs matching candidate preferred locations/remote and roles/skills
       if (filters?.onlyMatching !== false) {
-        const [profile, userSkills] = await Promise.all([
-          ctx.prisma.candidateProfile.findUnique({
-            where: { userId: ctx.userId },
-            select: {
-              experienceYears: true,
-              minExperienceYears: true,
-              maxExperienceYears: true,
-              experienceSummary: true,
-              preferredLocations: true,
-              preferredRoles: true,
-              remotePreference: true,
-            },
-          }),
-          ctx.prisma.userSkill.findMany({
-            where: { userId: ctx.userId },
-            select: { skillId: true },
-          }),
-        ]);
+        const fitData = await getUserFitData(ctx.userId, ctx.prisma);
+        const profile = fitData.profile;
+        const skillIds = fitData.userSkillIds;
 
         const andConditions: any[] = [];
 
@@ -268,8 +254,7 @@ export const jobsRouter = router({
               }
             }
           }
-          if (userSkills.length > 0) {
-            const skillIds = userSkills.map((us) => us.skillId);
+          if (skillIds.length > 0) {
             roleSkillOr.push({
               jobSkills: { some: { skillId: { in: skillIds } } },
             });
@@ -298,6 +283,7 @@ export const jobsRouter = router({
           where,
           select: {
             id: true,
+            userId: true,
             title: true,
             location: true,
             remote: true,

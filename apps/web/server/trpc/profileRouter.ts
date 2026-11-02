@@ -21,6 +21,7 @@ import {
   type ParseJob,
 } from "@/server/resumeParser";
 import crypto from "crypto";
+import { invalidateUserFitCache } from "@/server/userFitCache";
 
 export const profileRouter = router({
   // 1. Get profile
@@ -78,6 +79,8 @@ export const profileRouter = router({
         },
       });
 
+      invalidateUserFitCache(ctx.userId);
+
       return updated;
     }),
 
@@ -123,6 +126,8 @@ export const profileRouter = router({
         include: { skill: true },
       });
 
+      invalidateUserFitCache(ctx.userId);
+
       return userSkill;
     }),
 
@@ -136,6 +141,8 @@ export const profileRouter = router({
           skillId: input.skillId,
         },
       });
+
+      invalidateUserFitCache(ctx.userId);
 
       return { success: true };
     }),
@@ -186,6 +193,8 @@ export const profileRouter = router({
         },
       });
 
+      invalidateUserFitCache(ctx.userId);
+
       return { success: true, experienceSummary: updatedList };
     }),
 
@@ -208,6 +217,7 @@ export const profileRouter = router({
           where: { userId: ctx.userId },
           data: { experienceSummary: list },
         });
+        invalidateUserFitCache(ctx.userId);
       }
 
       return { success: true, experienceSummary: list };
@@ -478,6 +488,8 @@ export const profileRouter = router({
 
       // Permanent file deletion after confirmation (AC 2.3, ADR-005, ADR-013)
       await deleteResumeFile(job.storagePath);
+
+      invalidateUserFitCache(ctx.userId);
 
       return profile;
     }),

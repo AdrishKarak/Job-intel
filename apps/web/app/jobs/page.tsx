@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { trpc } from "@/lib/trpc/client";
 import { statusColorMap, formatSalaryRangeInr } from "@/lib/utils";
@@ -36,7 +36,8 @@ import {
 
 export default function JobsPage() {
   const utils = trpc.useUtils();
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedRole, setDebouncedRole] = useState<string | undefined>(undefined);
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [locationFilter, setLocationFilter] = useState<"ALL" | "INDIA" | "REMOTE">("ALL");
   const [onlyMatching, setOnlyMatching] = useState(true);
@@ -48,6 +49,14 @@ export default function JobsPage() {
     message: string;
   } | null>(null);
 
+  // Debounce search keystrokes to eliminate redundant network queries and DB scans
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedRole(searchInput.trim() || undefined);
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const showNotification = (type: "success" | "info" | "warning", message: string) => {
     setNotification({ type, message });
     setTimeout(() => {
@@ -56,19 +65,24 @@ export default function JobsPage() {
   };
 
   const filters = {
-    role: search.trim() || undefined,
+    role: debouncedRole,
     status: selectedStatus === "ALL" ? undefined : (selectedStatus as ApplicationStatus),
     remote: locationFilter === "REMOTE" ? true : undefined,
     location: locationFilter === "INDIA" ? "India" : undefined,
     onlyMatching: onlyMatching,
   };
 
-  const { data, isLoading, refetch } = trpc.jobs.list.useQuery({
-    filters,
-    page,
-    limit: pageSize,
-    sort: "newest",
-  });
+  const { data, isLoading, isFetching, refetch } = trpc.jobs.list.useQuery(
+    {
+      filters,
+      page,
+      limit: pageSize,
+      sort: "newest",
+    },
+    {
+      placeholderData: (previousData) => previousData,
+    }
+  );
 
   const syncMutation = trpc.jobs.syncDiscovery.useMutation({
     onSuccess: (res) => {
@@ -159,7 +173,7 @@ export default function JobsPage() {
   });
 
   const handleSearchChange = (val: string) => {
-    setSearch(val);
+    setSearchInput(val);
     setPage(1);
   };
 
@@ -291,11 +305,20 @@ export default function JobsPage() {
             <Search className="w-4 h-4 absolute left-3 top-3 text-ink/60" />
             <input
               type="text"
-              value={search}
+              value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search by role, company, or city (e.g. Stripe, Bengaluru, Software)..."
-              className="w-full pl-9 pr-4 py-2 border-2 border-ink bg-paper text-xs font-mono focus:outline-none"
+              className="w-full pl-9 pr-8 py-2 border-2 border-ink bg-paper text-xs font-mono focus:outline-none"
             />
+            {searchInput && (
+              <button
+                onClick={() => handleSearchChange("")}
+                className="absolute right-2.5 top-2.5 text-ink/50 hover:text-ink text-xs font-bold"
+                title="Clear search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 border-2 border-ink p-1 bg-neutral-100">
@@ -382,8 +405,8 @@ export default function JobsPage() {
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y-2 divide-ink/10 text-xs font-sans">
-                {isLoading ? (
+              <tbody className={`divide-y-2 divide-ink/10 text-xs font-sans transition-opacity duration-150 ${isFetching && data ? "opacity-60" : "opacity-100"}`}>
+                {isLoading && !data ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-xs font-mono text-ink/70">
                       Loading discovered jobs...

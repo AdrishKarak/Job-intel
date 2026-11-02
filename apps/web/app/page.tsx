@@ -37,10 +37,19 @@ export default function DashboardPage() {
   const activityPageSize = 5;
 
   const { data, isLoading, refetch, isRefetching } = trpc.dashboard.getSummary.useQuery();
-  const { data: topMatchesData, isLoading: isMatchesLoading } = trpc.dashboard.getTopMatches.useQuery({
-    page: matchesPage,
-    limit: 5,
-  });
+  const {
+    data: topMatchesData,
+    isLoading: isMatchesLoading,
+    isFetching: isMatchesFetching,
+  } = trpc.dashboard.getTopMatches.useQuery(
+    {
+      page: matchesPage,
+      limit: 5,
+    },
+    {
+      placeholderData: (previousData) => previousData,
+    }
+  );
 
   const stats = data?.stats;
   const scoreDist = data?.scoreDistribution;
@@ -336,8 +345,8 @@ export default function DashboardPage() {
                   <th className="py-2.5 px-3 text-right">Apply</th>
                 </tr>
               </thead>
-              <tbody className="divide-y-2 divide-ink/10 text-xs font-sans">
-                {isMatchesLoading ? (
+              <tbody className={`divide-y-2 divide-ink/10 text-xs font-sans transition-opacity duration-150 ${isMatchesFetching && topMatchesData ? "opacity-60" : "opacity-100"}`}>
+                {isMatchesLoading && !topMatchesData ? (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-xs font-mono text-ink/70">
                       Loading matching positions...

@@ -222,6 +222,7 @@ model Job {
   @@index([userId, matchScore, discoveredAt])
   @@index([userId, salaryMax])
   @@index([expiresAt])
+  @@index([companyId])
   @@map("jobs")
 }
 
@@ -235,6 +236,7 @@ model JobSkill {
   required Boolean @default(true) // required vs. nice-to-have, if extractable
 
   @@unique([jobId, skillId])
+  @@index([skillId])
   @@map("job_skills")
 }
 

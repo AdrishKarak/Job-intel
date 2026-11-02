@@ -5,6 +5,7 @@ import { computeSkillGapsForUser, getSkillGapsForUser } from "@/server/skillGaps
 import { checkRateLimit } from "@/server/rateLimit";
 import { logger, createRunId } from "@/server/logger";
 import { evaluateJobMatch, type CandidateFitCriteria } from "@/server/jobFilterEngine";
+import { getUserFitData } from "@/server/userFitCache";
 
 export const dashboardRouter = router({
   getSummary: protectedProcedure.query(async ({ ctx }) => {
@@ -19,13 +20,13 @@ export const dashboardRouter = router({
 
     // These reads are independent. Fetch them together so dashboard latency is
     // bound by the slowest query rather than the sum of their round trips.
-    const [rawJobs, profile, userSkills, statusHistory, persistedRecommendations] = await Promise.all([
+    // Also use cached candidate fit data to prevent redundant profile & skill lookups.
+    const [rawJobs, fitData, statusHistory, persistedRecommendations] = await Promise.all([
       ctx.prisma.job.findMany({
         where: { userId },
         select: {
           id: true,
           title: true,
-          description: true,
           location: true,
           remote: true,
           status: true,
@@ -42,24 +43,7 @@ export const dashboardRouter = router({
           },
         },
       }),
-      ctx.prisma.candidateProfile.findUnique({
-        where: { userId },
-        select: {
-          experienceYears: true,
-          minExperienceYears: true,
-          maxExperienceYears: true,
-          experienceSummary: true,
-          preferredLocations: true,
-          preferredRoles: true,
-          remotePreference: true,
-        },
-      }),
-      ctx.prisma.userSkill.findMany({
-        where: { userId },
-        select: {
-          skill: { select: { name: true } },
-        },
-      }),
+      getUserFitData(userId, ctx.prisma),
       ctx.prisma.applicationStatusHistory.findMany({
         where: { userId },
         take: 10,
@@ -75,6 +59,9 @@ export const dashboardRouter = router({
       }),
       getSkillGapsForUser(userId, ctx.prisma),
     ]);
+
+    const profile = fitData.profile;
+    const userSkills = fitData.userSkills;
 
     const fitCriteria: CandidateFitCriteria = {
       experienceYears: profile?.experienceYears,
@@ -94,7 +81,6 @@ export const dashboardRouter = router({
         {
           id: job.id,
           title: job.title,
-          description: job.description,
           location: job.location,
           remote: job.remote,
           skills: job.jobSkills ? job.jobSkills.map((js: any) => js.skill.name) : [],
