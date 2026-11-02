@@ -9,6 +9,11 @@ import { searchAndSyncJobs } from "@/server/discovery";
 import { scoreJobsForUser } from "@/server/matching";
 import { checkRateLimit } from "@/server/rateLimit";
 import { logger, createRunId } from "@/server/logger";
+import {
+  evaluateJobMatch,
+  resolveCandidateExperienceYears,
+  type CandidateFitCriteria,
+} from "@/server/jobFilterEngine";
 
 export const jobsRouter = router({
   // 1. List jobs for authenticated user with filters and pagination
@@ -68,11 +73,13 @@ export const jobsRouter = router({
       }
 
       // Filter only jobs matching candidate preferred locations/remote and roles/skills
-      if (filters?.onlyMatching) {
+      if (filters?.onlyMatching !== false) {
         const [profile, userSkills] = await Promise.all([
           ctx.prisma.candidateProfile.findUnique({
             where: { userId: ctx.userId },
             select: {
+              experienceYears: true,
+              experienceSummary: true,
               preferredLocations: true,
               preferredRoles: true,
               remotePreference: true,
@@ -87,6 +94,60 @@ export const jobsRouter = router({
         const andConditions: any[] = [];
 
         if (profile) {
+          const candidateYears = resolveCandidateExperienceYears({
+            experienceYears: profile.experienceYears,
+            experienceSummary: profile.experienceSummary as any,
+            preferredRoles: profile.preferredRoles,
+            preferredLocations: profile.preferredLocations,
+            remotePreference: profile.remotePreference,
+          });
+
+          // Stage 1: Experience-wise DB constraints
+          if (candidateYears >= 3) {
+            andConditions.push({
+              NOT: {
+                OR: [
+                  { title: { contains: "Intern", mode: "insensitive" } },
+                  { title: { contains: "Internship", mode: "insensitive" } },
+                  { title: { contains: "Co-op", mode: "insensitive" } },
+                ],
+              },
+            });
+          } else if (candidateYears < 2) {
+            andConditions.push({
+              NOT: {
+                OR: [
+                  { title: { contains: "Director", mode: "insensitive" } },
+                  { title: { contains: "VP", mode: "insensitive" } },
+                  { title: { contains: "Chief", mode: "insensitive" } },
+                  { title: { contains: "Principal", mode: "insensitive" } },
+                  { title: { contains: "Head of", mode: "insensitive" } },
+                ],
+              },
+            });
+          }
+
+          // Negative Filter: Exclude completely unrelated occupational fields
+          andConditions.push({
+            NOT: {
+              OR: [
+                { title: { contains: "Nurse", mode: "insensitive" } },
+                { title: { contains: "Physician", mode: "insensitive" } },
+                { title: { contains: "Receptionist", mode: "insensitive" } },
+                { title: { contains: "Cashier", mode: "insensitive" } },
+                { title: { contains: "Barista", mode: "insensitive" } },
+                { title: { contains: "Janitor", mode: "insensitive" } },
+                { title: { contains: "Account Executive", mode: "insensitive" } },
+                { title: { contains: "Sales Development", mode: "insensitive" } },
+                { title: { contains: "Recruiter", mode: "insensitive" } },
+                { title: { contains: "Talent Acquisition", mode: "insensitive" } },
+                { title: { contains: "Dental", mode: "insensitive" } },
+                { title: { contains: "Paralegal", mode: "insensitive" } },
+              ],
+            },
+          });
+
+          // Stage 2: Location & Remote constraints
           const locOr: any[] = [];
           if (profile.remotePreference === "REMOTE") {
             locOr.push({ remote: true });
@@ -104,6 +165,7 @@ export const jobsRouter = router({
             andConditions.push({ OR: locOr });
           }
 
+          // Stage 3: Role & Skill Relevance
           const roleSkillOr: any[] = [];
           if (profile.preferredRoles && profile.preferredRoles.length > 0) {
             for (const r of profile.preferredRoles) {
@@ -282,5 +344,76 @@ export const jobsRouter = router({
     return {
       deletedCount: result.count,
     };
+  }),
+
+  // 7. Prune irrelevant jobs from database based on 3-stage matching
+  pruneIrrelevant: protectedProcedure.mutation(async ({ ctx }) => {
+    checkRateLimit(ctx.userId, "jobs.pruneIrrelevant", { maxRequests: 10, windowMs: 60_000 });
+    const runId = createRunId();
+    logger.info("jobs.pruneIrrelevant", "Pruning non-matching discovered jobs", { runId, userId: ctx.userId });
+
+    const [jobs, profile, userSkills] = await Promise.all([
+      ctx.prisma.job.findMany({
+        where: {
+          userId: ctx.userId,
+          status: "DISCOVERED",
+        },
+        include: {
+          jobSkills: { include: { skill: true } },
+        },
+      }),
+      ctx.prisma.candidateProfile.findUnique({
+        where: { userId: ctx.userId },
+      }),
+      ctx.prisma.userSkill.findMany({
+        where: { userId: ctx.userId },
+        include: { skill: true },
+      }),
+    ]);
+
+    const fitCriteria: CandidateFitCriteria = {
+      experienceYears: profile?.experienceYears,
+      experienceSummary: profile?.experienceSummary as any,
+      preferredLocations: profile?.preferredLocations || [],
+      preferredRoles: profile?.preferredRoles || [],
+      remotePreference: profile?.remotePreference || "NO_PREFERENCE",
+      userSkills: userSkills.map((us) => us.skill.name),
+    };
+
+    const idsToDelete: string[] = [];
+    for (const job of jobs) {
+      const evalRes = evaluateJobMatch(
+        {
+          id: job.id,
+          title: job.title,
+          description: job.description,
+          location: job.location,
+          remote: job.remote,
+          skills: job.jobSkills.map((js) => js.skill.name),
+        },
+        fitCriteria
+      );
+
+      if (!evalRes.passed) {
+        idsToDelete.push(job.id);
+      }
+    }
+
+    if (idsToDelete.length > 0) {
+      await ctx.prisma.job.deleteMany({
+        where: {
+          id: { in: idsToDelete },
+          userId: ctx.userId,
+        },
+      });
+    }
+
+    logger.info("jobs.pruneIrrelevant", `Pruned ${idsToDelete.length} non-matching jobs`, {
+      runId,
+      userId: ctx.userId,
+      metadata: { deletedCount: idsToDelete.length },
+    });
+
+    return { deletedCount: idsToDelete.length };
   }),
 });

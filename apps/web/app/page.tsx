@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { trpc } from "@/lib/trpc/client";
@@ -18,16 +18,34 @@ import {
   Award,
   RefreshCw,
   Building,
+  MapPin,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 export default function DashboardPage() {
+  const [matchesPage, setMatchesPage] = useState(1);
+  const [activityPage, setActivityPage] = useState(1);
+  const activityPageSize = 5;
+
   const { data, isLoading, refetch, isRefetching } = trpc.dashboard.getSummary.useQuery();
+  const { data: topMatchesData, isLoading: isMatchesLoading } = trpc.dashboard.getTopMatches.useQuery({
+    page: matchesPage,
+    limit: 5,
+  });
 
   const stats = data?.stats;
   const scoreDist = data?.scoreDistribution;
   const statusCounts = data?.statusCounts || {};
   const topSkillGaps = data?.topSkillGaps || [];
   const recentActivity = data?.recentActivity || [];
+
+  const paginatedActivities = recentActivity.slice(
+    (activityPage - 1) * activityPageSize,
+    activityPage * activityPageSize
+  );
+  const totalActivityPages = Math.max(1, Math.ceil(recentActivity.length / activityPageSize));
 
   const totalScored =
     (scoreDist?.high || 0) + (scoreDist?.good || 0) + (scoreDist?.moderate || 0);
@@ -270,6 +288,150 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Curated Top Job Matches with Pagination */}
+        <div className="neo-card p-6 bg-paper space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-ink pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-ink" />
+                <h2 className="font-display text-lg uppercase text-ink">
+                  Curated Top Job Matches
+                </h2>
+              </div>
+              <p className="text-xs font-mono text-ink/70 mt-0.5">
+                Filtered strictly by experience, location, and technical skills.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/jobs"
+                className="inline-flex items-center gap-1 px-3 py-1.5 bg-paper border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press"
+              >
+                <span>Full Jobs CRM</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b-2 border-ink bg-neutral-100 text-[11px] font-mono uppercase text-ink/80 tracking-wider">
+                  <th className="py-2.5 px-3">Role & Company</th>
+                  <th className="py-2.5 px-3">Location</th>
+                  <th className="py-2.5 px-3">Fit Score</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3 text-right">Apply</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y-2 divide-ink/10 text-xs font-sans">
+                {isMatchesLoading ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-xs font-mono text-ink/70">
+                      Loading matching positions...
+                    </td>
+                  </tr>
+                ) : topMatchesData?.jobs && topMatchesData.jobs.length > 0 ? (
+                  topMatchesData.jobs.map((job) => {
+                    const statusMeta = statusColorMap[job.status as ApplicationStatus];
+                    const score = job.matchScore ? Math.round(job.matchScore) : null;
+
+                    return (
+                      <tr key={job.id} className="hover:bg-neutral-50 border-b border-ink/20">
+                        <td className="py-2.5 px-3 font-bold text-ink">
+                          <div>{job.title}</div>
+                          <div className="text-[11px] font-mono text-ink/70 font-normal flex items-center gap-1 mt-0.5">
+                            <Building className="w-3 h-3 text-ink/50" />
+                            <span>{job.company.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-xs text-ink/80">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-ink/50" />
+                            <span>{job.location || (job.remote ? "Remote" : "N/A")}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-xs">
+                          {score !== null ? (
+                            <span
+                              className={`px-2 py-0.5 border border-ink font-bold ${
+                                score >= 80 ? "bg-mint" : score >= 70 ? "bg-sky" : "bg-paper"
+                              }`}
+                            >
+                              {score}%
+                            </span>
+                          ) : (
+                            <span className="text-ink/40 font-mono">--</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span
+                            className={`inline-block px-1.5 py-0.2 border border-ink text-[10px] font-mono font-bold uppercase ${statusMeta.bg}`}
+                          >
+                            {statusMeta.label}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          {job.applicationUrl ? (
+                            <a
+                              href={job.applicationUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-mint text-ink border border-ink text-xs font-bold shadow-neo-sm neo-shadow-press"
+                              title="Open job application"
+                            >
+                              <span>Apply</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          ) : (
+                            <span className="text-ink/40 font-mono text-xs">N/A</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-xs font-mono text-ink/60">
+                      No matching positions yet. Sync discovery from the Jobs CRM!
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Dashboard Matches Pagination Controls */}
+          {topMatchesData && topMatchesData.total > 0 && (
+            <div className="flex items-center justify-between pt-2 border-t border-ink/10 text-xs font-mono">
+              <span className="text-ink/70">
+                Showing {(matchesPage - 1) * 5 + 1} - {Math.min(matchesPage * 5, topMatchesData.total)} of {topMatchesData.total}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setMatchesPage((p) => Math.max(1, p - 1))}
+                  disabled={matchesPage <= 1}
+                  className="px-2.5 py-1 bg-paper border border-ink shadow-neo-sm font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed neo-shadow-press"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 inline mr-0.5" />
+                  <span>Prev</span>
+                </button>
+                <span className="px-2 py-0.5 bg-neutral-100 border border-ink font-bold">
+                  {matchesPage} / {topMatchesData.totalPages || 1}
+                </span>
+                <button
+                  onClick={() => setMatchesPage((p) => Math.min(topMatchesData.totalPages || 1, p + 1))}
+                  disabled={matchesPage >= (topMatchesData.totalPages || 1)}
+                  className="px-2.5 py-1 bg-paper border border-ink shadow-neo-sm font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed neo-shadow-press"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5 inline ml-0.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Bottom Grids: Skill Gaps & Activity Feed */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Skill Gap Intelligence Widget */}
@@ -341,8 +503,8 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-3">
-              {recentActivity.length > 0 ? (
-                recentActivity.map((activity) => {
+              {paginatedActivities.length > 0 ? (
+                paginatedActivities.map((activity) => {
                   const meta = statusColorMap[activity.status];
                   const isTransition = activity.type === "STATUS_TRANSITION";
 
@@ -396,6 +558,31 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* Activity Pagination Controls */}
+            {recentActivity.length > activityPageSize && (
+              <div className="flex items-center justify-between pt-2 border-t border-ink/10 text-xs font-mono">
+                <span className="text-ink/60">
+                  Page {activityPage} of {totalActivityPages} ({recentActivity.length} items)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                    disabled={activityPage <= 1}
+                    className="px-2 py-0.5 bg-paper border border-ink shadow-neo-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed neo-shadow-press"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setActivityPage((p) => Math.min(totalActivityPages, p + 1))}
+                    disabled={activityPage >= totalActivityPages}
+                    className="px-2 py-0.5 bg-paper border border-ink shadow-neo-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed neo-shadow-press"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

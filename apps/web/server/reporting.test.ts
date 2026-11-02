@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import * as XLSX from "xlsx";
 import { generateJobsExcel } from "./excel";
 import { sendDailyReportEmail } from "./email";
 import { appRouter } from "./trpc/root";
@@ -122,6 +123,14 @@ describe("Reporting, Email & Excel Delivery (Phase 7)", () => {
     // Verify ZIP / XLSX magic bytes (PK..)
     expect(buffer[0]).toBe(0x50); // 'P'
     expect(buffer[1]).toBe(0x4b); // 'K'
+
+    // Verify sheet contains 'Apply Link' column
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const sheet = wb.Sheets["Discovered Jobs"];
+    const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toHaveProperty("Apply Link");
+    expect(rows[0]["Apply Link"]).toBe("https://stripe.com/jobs/1");
   });
 
   it("formats and dispatches daily email for active highlights (AC 25.1)", async () => {

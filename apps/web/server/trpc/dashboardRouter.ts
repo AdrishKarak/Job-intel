@@ -1,8 +1,10 @@
+import { z } from "zod";
 import { router, protectedProcedure } from "./trpc";
 import type { ApplicationStatus } from "@repo/shared-types";
 import { computeSkillGapsForUser, getSkillGapsForUser } from "@/server/skillGaps";
 import { checkRateLimit } from "@/server/rateLimit";
 import { logger, createRunId } from "@/server/logger";
+import { evaluateJobMatch, type CandidateFitCriteria } from "@/server/jobFilterEngine";
 
 export const dashboardRouter = router({
   getSummary: protectedProcedure.query(async ({ ctx }) => {
@@ -15,20 +17,67 @@ export const dashboardRouter = router({
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // 1. Fetch user's jobs for stats, scoring distribution, and skill gaps
-    const jobs = await ctx.prisma.job.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        matchScore: true,
-        missingSkills: true,
-        discoveredAt: true,
-        company: {
-          select: { name: true },
+    // 1. Fetch user's jobs, profile, and skills
+    const [rawJobs, profile, userSkills] = await Promise.all([
+      ctx.prisma.job.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          location: true,
+          remote: true,
+          status: true,
+          matchScore: true,
+          missingSkills: true,
+          discoveredAt: true,
+          company: {
+            select: { name: true },
+          },
+          jobSkills: {
+            include: { skill: true },
+          },
         },
-      },
+      }),
+      ctx.prisma.candidateProfile.findUnique({
+        where: { userId },
+        select: {
+          experienceYears: true,
+          experienceSummary: true,
+          preferredLocations: true,
+          preferredRoles: true,
+          remotePreference: true,
+        },
+      }),
+      ctx.prisma.userSkill.findMany({
+        where: { userId },
+        include: { skill: true },
+      }),
+    ]);
+
+    const fitCriteria: CandidateFitCriteria = {
+      experienceYears: profile?.experienceYears,
+      experienceSummary: profile?.experienceSummary as any,
+      preferredLocations: profile?.preferredLocations || [],
+      preferredRoles: profile?.preferredRoles || [],
+      remotePreference: profile?.remotePreference || "NO_PREFERENCE",
+      userSkills: userSkills.map((us) => us.skill.name),
+    };
+
+    // Filter jobs using 3-stage criteria so only relevant jobs populate dashboard metrics
+    const jobs = rawJobs.filter((job) => {
+      if (job.status !== "DISCOVERED") return true; // Keep all user-interacted jobs
+      return evaluateJobMatch(
+        {
+          id: job.id,
+          title: job.title,
+          description: job.description,
+          location: job.location,
+          remote: job.remote,
+          skills: job.jobSkills ? job.jobSkills.map((js: any) => js.skill.name) : [],
+        },
+        fitCriteria
+      ).passed;
     });
 
     // Calculate core stats
@@ -198,4 +247,42 @@ export const dashboardRouter = router({
       recommendations: updated,
     };
   }),
+
+  // 3. Paginated list of top matching qualified jobs for the dashboard
+  getTopMatches: protectedProcedure
+    .input(
+      z.object({
+        page: z.number().min(1).default(1),
+        limit: z.number().min(1).max(50).default(5),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { page, limit } = input;
+      const skip = (page - 1) * limit;
+
+      const where = { userId: ctx.userId };
+
+      const [jobs, total] = await Promise.all([
+        ctx.prisma.job.findMany({
+          where,
+          include: {
+            company: { select: { name: true } },
+          },
+          orderBy: [
+            { matchScore: "desc" },
+            { discoveredAt: "desc" },
+          ],
+          skip,
+          take: limit,
+        }),
+        ctx.prisma.job.count({ where }),
+      ]);
+
+      return {
+        jobs,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+      };
+    }),
 });

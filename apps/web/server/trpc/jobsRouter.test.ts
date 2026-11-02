@@ -16,7 +16,10 @@ describe("jobsRouter Integration & Per-User Isolation", () => {
         if (where.status) {
           results = results.filter((j) => j.status === where.status);
         }
-        return results.slice(skip, skip + take);
+        if (typeof skip === "number" && typeof take === "number") {
+          return results.slice(skip, skip + take);
+        }
+        return results;
       }),
       count: vi.fn(async ({ where }) => {
         return mockJobs.filter((j) => j.userId === where.userId).length;
@@ -31,11 +34,28 @@ describe("jobsRouter Integration & Per-User Isolation", () => {
       }),
       deleteMany: vi.fn(async ({ where }) => {
         const before = mockJobs.length;
-        mockJobs = mockJobs.filter(
-          (j) => !(j.userId === where.userId && j.expiresAt <= where.expiresAt.lte)
-        );
+        if (where.expiresAt) {
+          mockJobs = mockJobs.filter(
+            (j) => !(j.userId === where.userId && j.expiresAt <= where.expiresAt.lte)
+          );
+        } else if (where.id && where.id.in) {
+          mockJobs = mockJobs.filter(
+            (j) => !(j.userId === where.userId && where.id.in.includes(j.id))
+          );
+        }
         return { count: before - mockJobs.length };
       }),
+    },
+    candidateProfile: {
+      findUnique: vi.fn(async () => ({
+        preferredRoles: ["Backend Engineer"],
+        preferredLocations: ["Remote"],
+        remotePreference: "REMOTE",
+        experienceYears: 4,
+      })),
+    },
+    userSkill: {
+      findMany: vi.fn(async () => []),
     },
     applicationStatusHistory: {
       create: vi.fn(async ({ data }) => {
@@ -126,5 +146,52 @@ describe("jobsRouter Integration & Per-User Isolation", () => {
     const caller = appRouter.createCaller(mockCtx);
     const cleanupResult = await caller.jobs.cleanupExpired();
     expect(cleanupResult.deletedCount).toBe(1);
+  });
+
+  it("paginates jobs properly with page and limit", async () => {
+    // Add multiple jobs for testUserId
+    for (let i = 2; i <= 5; i++) {
+      mockJobs.push({
+        id: `job_${i}`,
+        userId: testUserId,
+        title: `Backend Engineer ${i}`,
+        status: "DISCOVERED",
+        company: { id: "comp_1", name: "Stripe", atsType: "GREENHOUSE" },
+        jobSkills: [],
+        discoveredAt: new Date(),
+        expiresAt: new Date(Date.now() + 40 * 24 * 60 * 60 * 1000),
+      });
+    }
+
+    const caller = appRouter.createCaller(mockCtx);
+    const page1 = await caller.jobs.list({ page: 1, limit: 2 });
+    expect(page1.jobs.length).toBe(2);
+    expect(page1.page).toBe(1);
+    expect(page1.total).toBe(5);
+    expect(page1.totalPages).toBe(3);
+
+    const page2 = await caller.jobs.list({ page: 2, limit: 2 });
+    expect(page2.jobs.length).toBe(2);
+    expect(page2.page).toBe(2);
+  });
+
+  it("prunes irrelevant non-matching jobs from database", async () => {
+    // Add irrelevant job (Nurse in clinical setting)
+    mockJobs.push({
+      id: "job_nurse",
+      userId: testUserId,
+      title: "Registered Nurse (ICU)",
+      description: "Hospital clinical care",
+      status: "DISCOVERED",
+      company: { id: "comp_hosp", name: "Hospital", atsType: "GREENHOUSE" },
+      jobSkills: [],
+      discoveredAt: new Date(),
+      expiresAt: new Date(Date.now() + 40 * 24 * 60 * 60 * 1000),
+    });
+
+    const caller = appRouter.createCaller(mockCtx);
+    const pruneRes = await caller.jobs.pruneIrrelevant();
+    expect(pruneRes.deletedCount).toBeGreaterThanOrEqual(1);
+    expect(mockJobs.find((j) => j.id === "job_nurse")).toBeUndefined();
   });
 });

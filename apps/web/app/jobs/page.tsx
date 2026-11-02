@@ -13,9 +13,14 @@ import {
   RefreshCw,
   Sparkles,
   ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
   MapPin,
   Building,
   Download,
+  ExternalLink,
+  Trash2,
 } from "lucide-react";
 
 export default function JobsPage() {
@@ -24,6 +29,8 @@ export default function JobsPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [onlyMatching, setOnlyMatching] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   const filters = {
@@ -35,18 +42,31 @@ export default function JobsPage() {
 
   const { data, isLoading, refetch } = trpc.jobs.list.useQuery({
     filters,
-    limit: 50,
+    page,
+    limit: pageSize,
+    sort: "newest",
   });
 
   const syncMutation = trpc.jobs.syncDiscovery.useMutation({
-    onSuccess: () => {
+    onSuccess: (res) => {
       utils.jobs.list.invalidate();
+      utils.dashboard.getSummary.invalidate();
+      alert(`Polled company ATS boards: Discovered ${res.newJobsCount} matching jobs.`);
+    },
+  });
+
+  const pruneMutation = trpc.jobs.pruneIrrelevant.useMutation({
+    onSuccess: (res) => {
+      utils.jobs.list.invalidate();
+      utils.dashboard.getSummary.invalidate();
+      alert(`Pruned ${res.deletedCount} irrelevant / non-matching jobs from your database.`);
     },
   });
 
   const scoreAllMutation = trpc.jobs.scoreAll.useMutation({
     onSuccess: (res) => {
       utils.jobs.list.invalidate();
+      utils.dashboard.getSummary.invalidate();
       alert(`Scored ${res.scoredCount} jobs against your profile.`);
     },
   });
@@ -78,6 +98,26 @@ export default function JobsPage() {
     },
   });
 
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const handleStatusChange = (val: string) => {
+    setSelectedStatus(val);
+    setPage(1);
+  };
+
+  const handleRemoteChange = (val: boolean) => {
+    setRemoteOnly(val);
+    setPage(1);
+  };
+
+  const handleMatchingChange = (val: boolean) => {
+    setOnlyMatching(val);
+    setPage(1);
+  };
+
   return (
     <AppShell>
       <div className="space-y-8">
@@ -99,6 +139,15 @@ export default function JobsPage() {
             >
               <Download className={`w-3.5 h-3.5 ${exportExcelMutation.isPending ? "animate-bounce" : ""}`} />
               <span>{exportExcelMutation.isPending ? "Exporting..." : "Export Excel"}</span>
+            </button>
+            <button
+              onClick={() => pruneMutation.mutate()}
+              disabled={pruneMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 bg-coral/20 border-2 border-ink shadow-neo-sm font-bold text-xs neo-shadow-press text-ink"
+              title="Remove non-matching / irrelevant discovered jobs from database"
+            >
+              <Trash2 className={`w-3.5 h-3.5 ${pruneMutation.isPending ? "animate-spin" : ""}`} />
+              <span>{pruneMutation.isPending ? "Pruning..." : "Prune Unmatched"}</span>
             </button>
             <button
               onClick={() => scoreAllMutation.mutate({})}
@@ -135,7 +184,7 @@ export default function JobsPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search by role or company..."
               className="w-full pl-9 pr-4 py-2 border-2 border-ink bg-paper text-xs font-mono focus:outline-none"
             />
@@ -145,7 +194,7 @@ export default function JobsPage() {
             <Filter className="w-4 h-4 text-ink/70" />
             <select
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
+              onChange={(e) => handleStatusChange(e.target.value)}
               className="px-3 py-2 border-2 border-ink bg-paper text-xs font-bold uppercase focus:outline-none"
             >
               <option value="ALL">All Statuses</option>
@@ -166,7 +215,7 @@ export default function JobsPage() {
             <input
               type="checkbox"
               checked={remoteOnly}
-              onChange={(e) => setRemoteOnly(e.target.checked)}
+              onChange={(e) => handleRemoteChange(e.target.checked)}
               className="w-4 h-4 accent-ink border-2 border-ink"
             />
             <span>Remote Only</span>
@@ -176,7 +225,7 @@ export default function JobsPage() {
             <input
               type="checkbox"
               checked={onlyMatching}
-              onChange={(e) => setOnlyMatching(e.target.checked)}
+              onChange={(e) => handleMatchingChange(e.target.checked)}
               className="w-4 h-4 accent-ink border-2 border-ink"
             />
             <span className="flex items-center gap-1">
@@ -276,16 +325,31 @@ export default function JobsPage() {
                         </td>
 
                         <td className="py-3.5 px-4 text-right">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedJobId(job.id);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-paper border border-ink text-xs font-bold shadow-neo-sm neo-shadow-press"
-                          >
-                            <span>Inspect</span>
-                            <ChevronRight className="w-3 h-3" />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            {job.applicationUrl && (
+                              <a
+                                href={job.applicationUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-mint text-ink border border-ink text-xs font-bold shadow-neo-sm neo-shadow-press"
+                                title="Open official job application page"
+                              >
+                                <span>Apply</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedJobId(job.id);
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-paper border border-ink text-xs font-bold shadow-neo-sm neo-shadow-press"
+                            >
+                              <span>Inspect</span>
+                              <ChevronRight className="w-3 h-3" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -309,6 +373,76 @@ export default function JobsPage() {
             </table>
           </div>
         </div>
+
+        {/* Pagination Bar */}
+        {data && data.total > 0 && (
+          <div className="neo-card p-4 bg-paper flex flex-col sm:flex-row items-center justify-between gap-4 border-2 border-ink">
+            <div className="flex items-center gap-4 text-xs font-mono text-ink">
+              <span>
+                Showing <strong className="font-bold">{(page - 1) * pageSize + 1}</strong> to{" "}
+                <strong className="font-bold">{Math.min(page * pageSize, data.total)}</strong> of{" "}
+                <strong className="font-bold">{data.total}</strong> jobs
+              </span>
+              <div className="flex items-center gap-1.5 pl-3 border-l-2 border-ink/30">
+                <span className="text-[11px] font-bold uppercase text-ink/70">Per Page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="px-2 py-1 bg-paper border border-ink text-xs font-mono font-bold focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(1)}
+                disabled={page <= 1}
+                className="p-1.5 bg-paper border border-ink shadow-neo-sm font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed neo-shadow-press"
+                title="First Page"
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="flex items-center gap-1 px-3 py-1.5 bg-paper border border-ink shadow-neo-sm font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed neo-shadow-press"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Prev</span>
+              </button>
+
+              <span className="px-3 py-1 bg-neutral-100 border border-ink text-xs font-mono font-bold">
+                Page {page} of {data.totalPages || 1}
+              </span>
+
+              <button
+                onClick={() => setPage((p) => Math.min(data.totalPages || 1, p + 1))}
+                disabled={page >= (data.totalPages || 1)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-paper border border-ink shadow-neo-sm font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed neo-shadow-press"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setPage(data.totalPages || 1)}
+                disabled={page >= (data.totalPages || 1)}
+                className="p-1.5 bg-paper border border-ink shadow-neo-sm font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed neo-shadow-press"
+                title="Last Page"
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Slide-over Detail Panel */}

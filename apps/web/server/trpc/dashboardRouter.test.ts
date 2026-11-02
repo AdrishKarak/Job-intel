@@ -12,9 +12,27 @@ describe("dashboardRouter Integration & User Isolation (Phase 5)", () => {
 
   const mockPrisma = {
     job: {
-      findMany: vi.fn(async ({ where }) => {
-        return mockJobs.filter((j) => j.userId === where.userId);
+      findMany: vi.fn(async ({ where, skip, take }) => {
+        let results = mockJobs.filter((j) => j.userId === where.userId);
+        if (typeof skip === "number" && typeof take === "number") {
+          results = results.slice(skip, skip + take);
+        }
+        return results;
       }),
+      count: vi.fn(async ({ where }) => {
+        return mockJobs.filter((j) => j.userId === where.userId).length;
+      }),
+    },
+    candidateProfile: {
+      findUnique: vi.fn(async () => ({
+        preferredRoles: ["Backend Engineer", "Full Stack Engineer", "Platform Engineer"],
+        preferredLocations: ["Remote"],
+        remotePreference: "REMOTE",
+        experienceYears: 4,
+      })),
+    },
+    userSkill: {
+      findMany: vi.fn(async () => []),
     },
     applicationStatusHistory: {
       findMany: vi.fn(async ({ where }) => {
@@ -174,5 +192,15 @@ describe("dashboardRouter Integration & User Isolation (Phase 5)", () => {
     expect(result.recommendations[0].skillName).toBeDefined();
     expect(result.recommendations[0].frequency).toBeGreaterThan(0);
     expect(result.recommendations[0].estimatedLift).toBeDefined();
+  });
+
+  it("returns paginated top matches with correct total count and isolation", async () => {
+    const caller = appRouter.createCaller(mockCtx);
+    const res = await caller.dashboard.getTopMatches({ page: 1, limit: 2 });
+
+    expect(res.jobs.length).toBe(2);
+    expect(res.page).toBe(1);
+    expect(res.total).toBe(3); // only testUserId jobs
+    expect(res.totalPages).toBe(2);
   });
 });
