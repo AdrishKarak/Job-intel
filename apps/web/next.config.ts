@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  outputFileTracingIncludes: {
+    "/api/**/*": [
+      "./.next/server/libquery_engine*",
+      "./.next/server/chunks/libquery_engine*",
+      "./.prisma/client/**/*",
+      "../../node_modules/.pnpm/@prisma+client*/**/*",
+    ],
+  },
   experimental: {
     optimizePackageImports: ["lucide-react", "@clerk/nextjs", "@tanstack/react-query"],
   },

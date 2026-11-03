@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node copy-engine.js",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -15,6 +15,7 @@
     "@aws-sdk/s3-request-presigner": "^3.682.0",
     "@clerk/nextjs": "^6.0.2",
     "@google/generative-ai": "^0.21.0",
+    "@prisma/client": "5.22.0",
     "@repo/ai-clients": "workspace:*",
     "@repo/ats-connectors": "workspace:*",
     "@repo/db": "workspace:*",

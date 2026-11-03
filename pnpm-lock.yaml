@@ -29,6 +29,9 @@ importers:
       '@google/generative-ai':
         specifier: ^0.21.0
         version: 0.21.0
+      '@prisma/client':
+        specifier: 5.22.0
+        version: 5.22.0(prisma@5.22.0)
       '@repo/ai-clients':
         specifier: workspace:*
         version: link:../../packages/ai-clients
