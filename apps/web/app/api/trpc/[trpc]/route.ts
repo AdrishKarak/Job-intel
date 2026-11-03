@@ -25,10 +25,7 @@ const handler = (req: Request) =>
     router: appRouter,
     createContext: () => createTRPCContext(),
     onError: ({ path, error }) => {
-      if (process.env.NODE_ENV === "development") {
-        console.error(`❌ tRPC failed on ${path ?? "<no-path>"}: ${error.message}`);
-        return;
-      }
+      console.error(`❌ [tRPC Error on ${path ?? "<no-path>"}]:`, error);
 
       logger.error("trpc.request", "tRPC request failed", {
         metadata: {

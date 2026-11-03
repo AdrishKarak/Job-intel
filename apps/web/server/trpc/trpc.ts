@@ -8,8 +8,10 @@ const t = initTRPC.context<Context>().create({
   errorFormatter({ shape, error }) {
     return {
       ...shape,
+      message: error.message,
       data: {
         ...shape.data,
+        message: error.message,
         zodError:
           error.cause instanceof ZodError ? error.cause.flatten() : null,
       },

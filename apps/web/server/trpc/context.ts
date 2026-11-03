@@ -21,8 +21,8 @@ export async function createTRPCContext() {
   let session = null;
   try {
     session = await auth();
-  } catch {
-    // Handling cases when called outside request context (e.g., tests)
+  } catch (authErr) {
+    console.warn("Clerk auth() failed in createTRPCContext:", authErr);
     session = null;
   }
 
@@ -33,18 +33,33 @@ export async function createTRPCContext() {
     if (cached && Date.now() - cached.cachedAt < USER_CACHE_TTL_MS) {
       dbUser = cached.user;
     } else {
-      dbUser = await prisma.user.findUnique({
-        where: { clerkId: session.userId },
-      });
+      try {
+        dbUser = await prisma.user.findUnique({
+          where: { clerkId: session.userId },
+        });
+      } catch (findErr) {
+        console.error("Failed to query user in database (check DATABASE_URL configuration):", findErr);
+      }
 
       if (!dbUser) {
         // Auto-provision user if Clerk webhook hasn't fired yet
-        const clerkUser = await currentUser();
-        const primaryEmail =
-          clerkUser?.emailAddresses?.[0]?.emailAddress ?? `${session.userId}@user.local`;
-        const name = clerkUser
-          ? `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim()
-          : null;
+        let primaryEmail = `${session.userId}@user.local`;
+        let name: string | null = null;
+
+        try {
+          const clerkUser = await currentUser();
+          if (clerkUser?.emailAddresses?.[0]?.emailAddress) {
+            primaryEmail = clerkUser.emailAddresses[0].emailAddress;
+          }
+          if (clerkUser) {
+            name = `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim() || null;
+          }
+        } catch (clerkErr) {
+          console.warn(
+            "Could not fetch currentUser from Clerk (CLERK_SECRET_KEY might not be configured in Vercel):",
+            clerkErr
+          );
+        }
 
         try {
           dbUser = await prisma.user.upsert({
@@ -59,8 +74,8 @@ export async function createTRPCContext() {
               name: name || undefined,
             },
           });
-        } catch (e) {
-          console.error("Failed to auto-provision user in context:", e);
+        } catch (upsertErr) {
+          console.error("Failed to auto-provision user in database:", upsertErr);
         }
       }
 
