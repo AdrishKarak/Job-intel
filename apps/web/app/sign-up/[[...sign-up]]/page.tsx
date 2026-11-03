@@ -1,6 +1,7 @@
 import { SignUp } from "@clerk/nextjs";
 import Link from "next/link";
-import { Sparkles, Zap, ArrowRight, ShieldCheck, Target, Layers } from "lucide-react";
+import { Zap, ArrowRight, ShieldCheck, Target, Layers } from "lucide-react";
+import { JobIntelLogo } from "@/components/icons/CustomIcons";
 
 export default function SignUpPage() {
   return (
@@ -9,19 +10,22 @@ export default function SignUpPage() {
       <div className="lg:w-7/12 border-b-4 lg:border-b-0 lg:border-r-4 border-ink p-8 sm:p-12 lg:p-16 flex flex-col justify-between bg-paper">
         <div className="space-y-10 max-w-2xl">
           {/* Brand header */}
-          <div className="flex items-center gap-3">
-            <span className="p-2 bg-mint border-2 border-ink shadow-neo-sm font-black">
-              <Sparkles className="w-6 h-6 text-ink" />
-            </span>
+          <Link href="/" className="inline-flex items-center gap-3.5 group">
+            <JobIntelLogo size={46} />
             <div>
-              <span className="font-display text-2xl tracking-tight text-ink uppercase block leading-none">
-                JobIntel
-              </span>
-              <span className="text-xs font-mono font-medium text-ink/70">
-                AI Autonomous Job Intelligence Platform
+              <div className="flex items-center gap-2">
+                <span className="font-display text-2xl sm:text-3xl tracking-tight text-ink uppercase leading-none">
+                  JobIntel
+                </span>
+                <span className="text-[10px] font-mono font-black uppercase px-1.5 py-0.5 bg-mint border border-ink shadow-neo-xs">
+                  AI
+                </span>
+              </div>
+              <span className="text-xs font-mono font-medium text-ink/70 block mt-1">
+                Autonomous Job Intelligence Platform
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Hero text */}
           <div className="space-y-4">
@@ -96,6 +100,13 @@ export default function SignUpPage() {
       {/* Right Column: Framed Authentication Portal */}
       <div className="lg:w-5/12 p-8 sm:p-12 lg:p-16 flex flex-col justify-center items-center bg-paper">
         <div className="w-full max-w-md space-y-6">
+          {/* Mobile-only brand identifier above auth card */}
+          <div className="lg:hidden flex items-center justify-center gap-2.5 pb-1">
+            <JobIntelLogo size={34} />
+            <span className="font-display text-xl uppercase tracking-tight text-ink">JobIntel</span>
+            <span className="text-[9px] font-mono font-black uppercase px-1 bg-mint border border-ink">AI</span>
+          </div>
+
           <div className="flex items-center justify-between">
             <span className="px-2.5 py-1 bg-sky border-2 border-ink shadow-neo-sm text-[10px] font-mono font-bold uppercase text-ink">
               New Account
