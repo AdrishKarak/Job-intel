@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton, useUser, useAuth } from "@clerk/nextjs";
 import { Sidebar } from "./Sidebar";
 import {
   JobIntelLogo,
@@ -13,6 +13,7 @@ import {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
 
   // Close mobile drawer when route changes
@@ -31,6 +32,48 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       document.body.style.overflow = "unset";
     };
   }, [mobileMenuOpen]);
+
+  // Prevent child queries from executing before Clerk has finished loading credentials
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-paper flex flex-col items-center justify-center p-6 select-none">
+        <div className="p-8 bg-paper border-4 border-ink shadow-neo flex flex-col items-center gap-4 max-w-sm text-center">
+          <div className="w-10 h-10 border-4 border-ink border-t-mint animate-spin" />
+          <h2 className="font-display text-xl uppercase tracking-tight text-ink">
+            Authenticating Session
+          </h2>
+          <p className="font-mono text-xs text-ink/70">
+            Validating secure credentials and syncing intelligence telemetry...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Graceful state when user is not signed in
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen bg-paper flex flex-col items-center justify-center p-6 select-none">
+        <div className="p-8 bg-paper border-4 border-ink shadow-neo flex flex-col items-center gap-4 max-w-md text-center">
+          <div className="p-3 bg-sun border-2 border-ink shadow-neo-sm font-bold text-ink">
+            🔐 Sign In Required
+          </div>
+          <h2 className="font-display text-2xl uppercase tracking-tight text-ink">
+            Access Restricted
+          </h2>
+          <p className="font-mono text-xs text-ink/70 leading-relaxed">
+            Please authenticate to access your autonomous dashboard, tracked jobs CRM, and personalized candidate profile.
+          </p>
+          <Link
+            href="/sign-in"
+            className="w-full py-3 px-4 bg-mint border-2 border-ink shadow-neo font-bold text-sm text-ink hover:bg-mint/90 neo-shadow-press uppercase tracking-wider text-center"
+          >
+            Sign In Now →
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-paper flex flex-col antialiased">

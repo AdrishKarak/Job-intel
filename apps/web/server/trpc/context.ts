@@ -19,14 +19,17 @@ export function invalidateUserContextCache(clerkId?: string) {
 
 export async function createTRPCContext() {
   let session = null;
+  let authError: Error | null = null;
   try {
     session = await auth();
-  } catch (authErr) {
+  } catch (authErr: any) {
     console.warn("Clerk auth() failed in createTRPCContext:", authErr);
+    authError = authErr;
     session = null;
   }
 
   let dbUser = null;
+  let dbError: Error | null = null;
 
   if (session?.userId) {
     const cached = userCache.get(session.userId);
@@ -37,7 +40,8 @@ export async function createTRPCContext() {
         dbUser = await prisma.user.findUnique({
           where: { clerkId: session.userId },
         });
-      } catch (findErr) {
+      } catch (findErr: any) {
+        dbError = findErr;
         console.error("Failed to query user in database (check DATABASE_URL configuration):", findErr);
       }
 
@@ -62,20 +66,36 @@ export async function createTRPCContext() {
         }
 
         try {
-          dbUser = await prisma.user.upsert({
-            where: { clerkId: session.userId },
-            update: {
-              email: primaryEmail,
-              name: name || undefined,
-            },
-            create: {
-              clerkId: session.userId,
-              email: primaryEmail,
-              name: name || undefined,
-            },
+          // Check if an existing user was created with this email (e.g. earlier dev session or seed)
+          const existingByEmail = await prisma.user.findUnique({
+            where: { email: primaryEmail },
           });
-        } catch (upsertErr) {
-          console.error("Failed to auto-provision user in database:", upsertErr);
+
+          if (existingByEmail) {
+            dbUser = await prisma.user.update({
+              where: { id: existingByEmail.id },
+              data: {
+                clerkId: session.userId,
+                name: name || existingByEmail.name,
+              },
+            });
+          } else {
+            dbUser = await prisma.user.upsert({
+              where: { clerkId: session.userId },
+              update: {
+                email: primaryEmail,
+                name: name || undefined,
+              },
+              create: {
+                clerkId: session.userId,
+                email: primaryEmail,
+                name: name || undefined,
+              },
+            });
+          }
+        } catch (provisionErr: any) {
+          dbError = provisionErr;
+          console.error("Failed to auto-provision user in database:", provisionErr);
         }
       }
 
@@ -89,6 +109,8 @@ export async function createTRPCContext() {
     prisma,
     auth: session,
     user: dbUser,
+    authError,
+    dbError,
   };
 }
 
