@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { geminiKeyPool } from "./keyPool";
 
 export const EMBEDDING_DIMENSION = 1536;
 
@@ -62,37 +63,49 @@ let hasWarnedEmbeddingFallback = false;
  * Generates an embedding vector of length 1536 for semantic matching
  */
 export async function getEmbedding(text: string): Promise<number[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const allKeys = geminiKeyPool.getAllKeys();
 
-  if (!apiKey || apiKey.startsWith("AQ.placeholder")) {
+  if (allKeys.length === 0) {
     return generateDeterministicEmbedding(text);
   }
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
-    const result = await model.embedContent(text.slice(0, 8000));
-    const rawValues = result.embedding.values;
+  for (let attempt = 0; attempt < allKeys.length; attempt++) {
+    const apiKey = geminiKeyPool.getNextKey();
+    if (!apiKey) break;
 
-    if (!rawValues || rawValues.length === 0) {
-      return generateDeterministicEmbedding(text);
-    }
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
+      const result = await model.embedContent(text.slice(0, 8000));
+      const rawValues = result.embedding.values;
 
-    // Ensure dimension equals 1536 (pad or truncate to match vector(1536) in schema.prisma)
-    if (rawValues.length === EMBEDDING_DIMENSION) {
-      return rawValues;
-    }
+      if (!rawValues || rawValues.length === 0) {
+        return generateDeterministicEmbedding(text);
+      }
 
-    const adjusted = new Array<number>(EMBEDDING_DIMENSION).fill(0);
-    for (let i = 0; i < EMBEDDING_DIMENSION; i++) {
-      adjusted[i] = rawValues[i % rawValues.length];
+      // Ensure dimension equals 1536 (pad or truncate to match vector(1536) in schema.prisma)
+      if (rawValues.length === EMBEDDING_DIMENSION) {
+        return rawValues;
+      }
+
+      const adjusted = new Array<number>(EMBEDDING_DIMENSION).fill(0);
+      for (let i = 0; i < EMBEDDING_DIMENSION; i++) {
+        adjusted[i] = rawValues[i % rawValues.length];
+      }
+      return adjusted;
+    } catch (err: any) {
+      const msg = err.message || "";
+      if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("Quota exceeded")) {
+        geminiKeyPool.markExhausted(apiKey);
+        continue; // Failover to backup key
+      }
+      break;
     }
-    return adjusted;
-  } catch (err) {
-    if (!hasWarnedEmbeddingFallback) {
-      hasWarnedEmbeddingFallback = true;
-      console.warn("Gemini embedding endpoint unavailable; using deterministic unit-vector fallback.");
-    }
-    return generateDeterministicEmbedding(text);
   }
+
+  if (!hasWarnedEmbeddingFallback) {
+    hasWarnedEmbeddingFallback = true;
+    console.warn("Gemini embedding endpoint unavailable; using deterministic unit-vector fallback.");
+  }
+  return generateDeterministicEmbedding(text);
 }

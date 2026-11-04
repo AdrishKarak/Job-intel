@@ -10,15 +10,15 @@ graph LR
     AGENT -- MCP protocol --> MCP[apps/mcp-server<br/>Tool server]
     MCP --> DB
     MCP --> ATS[ATS Connectors<br/>Greenhouse/Lever/Ashby/<br/>Workday/SmartRecruiters/Workable]
-    MCP --> FC[Firecrawl<br/>Wellfound + custom sites]
+    MCP --> FC[Crawler Pool<br/>Firecrawl Keys 1 & 2<br/>+ Scrape.do proxy]
     MCP --> PUP[Puppeteer fallback]
-    MCP --> AI[Gemini / Groq]
-    MCP --> RESEND[Resend<br/>email delivery]
+    MCP --> AI[AI Pool<br/>Gemini Keys 1 & 2<br/>+ Groq pool]
+    MCP --> RESEND[Brevo SMTP / Nodemailer<br/>email delivery + Excel attachment]
 ```
 
 - **`apps/web`** is the only thing the user directly interacts with. It owns the UI (Dashboard, Profile, Jobs) and simple CRUD via tRPC → Prisma.
 - **`apps/agent-worker`** runs the LangGraph state machine (Supervisor → Profile → Matching → \[Skill Gap\] → Report → Notification). It has no direct DB or external API access — everything it needs comes from MCP tool calls.
-- **`apps/mcp-server`** is the only service allowed to touch ATS connectors, Firecrawl, Puppeteer, the AI providers, and Resend. It exposes exactly six tools (see `mcp/TOOL_REGISTRY.md`): `searchJobs`, `scoreJobs`, `getProfile`, `updateSkillGaps`, `generateReport`, `sendEmail`.
+- **`apps/mcp-server`** is the only service allowed to touch ATS connectors, the Firecrawl & Scrape.do crawler pool, Puppeteer, the Gemini & Groq multi-key AI provider pools, and outbound SMTP email delivery. It exposes exactly six tools (see `mcp/TOOL_REGISTRY.md`): `searchJobs`, `scoreJobs`, `getProfile`, `updateSkillGaps`, `generateReport`, `sendEmail`.
 
 This boundary exists so agent logic can be reasoned about, tested, and swapped independently of how job discovery or scoring is actually implemented underneath.
 
@@ -32,7 +32,7 @@ sequenceDiagram
     participant MCP as apps/mcp-server
     participant DB as Postgres
 
-    Inngest->>Web: scheduled trigger (e.g. 6 PM daily)
+    Inngest->>Web: scheduled trigger at 6:30 PM UTC (cron: "30 18 * * *")
     Web->>Agent: start orchestration run (per user)
     Agent->>MCP: searchJobs(profile)
     MCP->>DB: query Company registry, discover/normalize jobs
@@ -43,9 +43,9 @@ sequenceDiagram
         Agent->>Agent: route to Skill Gap Agent
     end
     Agent->>MCP: generateReport(userId)
-    MCP-->>Agent: report summary + Excel file
-    Agent->>MCP: sendEmail(report)
-    MCP-->>Agent: delivery confirmation
+    MCP-->>Agent: report summary + generated .xlsx workbook buffer
+    Agent->>MCP: sendEmail(report, excelAttachment)
+    MCP-->>Agent: delivery confirmation (email dispatched with attachment)
 ```
 
 ## Onboarding flow (one-time per user)

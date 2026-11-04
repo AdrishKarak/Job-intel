@@ -6,4 +6,5 @@ export * from "./smartrecruiters";
 export * from "./workable";
 export * from "./workday";
 export * from "./firecrawl";
+export * from "./crawlerPool";
 export * from "./openPlatforms";

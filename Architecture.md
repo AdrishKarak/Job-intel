@@ -48,12 +48,12 @@ flowchart TD
         MatchingEngine["Hybrid Scoring Engine (Rules + Vector)"]
         ResumeParser["Resume Extraction Engine (Mammoth / pdf-parse)"]
         SkillGapEngine["Skill Gap Analyzer"]
-        ExcelEngine["ExcelJS Spreadsheet Generator"]
+        ExcelEngine["XLSX Spreadsheet Generator (Direct Download & Email Attachment)"]
     end
 
     subgraph WorkerTier["Async & Scheduled Execution Tier"]
         InngestClient["Inngest Workflow Runner"]
-        CronDaily["Daily Intelligence Cron (19:00)"]
+        CronDaily["Daily Intelligence Cron (18:30 UTC / 6:30 PM UTC)"]
         CronSync["ATS Discovery Sync Cron (Every 6h)"]
     end
 
@@ -64,9 +64,10 @@ flowchart TD
 
     subgraph ExternalServices["External Infrastructure & SaaS"]
         ClerkAuth["Clerk Identity Platform"]
-        AIProviders["Google Gemini / Groq Cloud"]
+        AIProviders["Google Gemini Pool (Keys 1 & 2) / Groq Cloud"]
         ATSBoards["Target ATS Portals (Greenhouse, Lever, Ashby, Workday)"]
-        SMTPService["SMTP / Email Transport"]
+        WebCrawlers["Web Crawlers (Firecrawl Keys 1 & 2 + Scrape.do Proxy)"]
+        SMTPService["SMTP / Brevo Email Transport"]
     end
 
     UI --> TRPCC
@@ -97,8 +98,10 @@ flowchart TD
     InngestClient --> CronDaily
     InngestClient --> CronSync
     CronDaily --> RepR
+    CronDaily --> ExcelEngine
     CronDaily --> SMTPService
     CronSync --> ATSBoards
+    CronSync --> WebCrawlers
     CronSync --> FilterEngine
     CronSync --> PG
 ```
@@ -246,14 +249,16 @@ The ATS connectors module extracts postings from diverse public APIs and web end
 
 ```mermaid
 flowchart LR
-    subgraph ATSPlatforms["Source ATS Platforms"]
+    subgraph ATSPlatforms["Source ATS Platforms & Web Scraping"]
         GH["Greenhouse API"]
         LV["Lever Postings API"]
         ASH["Ashby Public API"]
         WRK["Workable API"]
         SR["SmartRecruiters API"]
         WD["Workday CX Portal"]
-        FC["Firecrawl Generic Scraper"]
+        FC1["Firecrawl Primary (Key 1)"]
+        FC2["Firecrawl Backup (Key 2)"]
+        SDO["Scrape.do Residential Proxy"]
     end
 
     subgraph ConnectorModule["@repo/ats-connectors"]
@@ -263,6 +268,7 @@ flowchart LR
         FetchWRK["fetchWorkableJobs()"]
         FetchSR["fetchSmartRecruitersJobs()"]
         FetchWD["fetchWorkdayJobs()"]
+        CrawlerPool["crawlTargetPage() Multi-Engine Pool"]
         ScrapeFC["scrapeJobsWithFirecrawl()"]
         Norm["normalizeJob() Transformer"]
     end
@@ -279,7 +285,11 @@ flowchart LR
     WRK --> FetchWRK
     SR --> FetchSR
     WD --> FetchWD
-    FC --> ScrapeFC
+    
+    FC1 --> CrawlerPool
+    FC2 --> CrawlerPool
+    SDO --> CrawlerPool
+    CrawlerPool --> ScrapeFC
 
     FetchGH --> Norm
     FetchLV --> Norm
@@ -380,11 +390,12 @@ sequenceDiagram
     participant Inngest as Inngest Cloud Scheduler
     participant Worker as /api/inngest Endpoint
     participant DB as Neon PostgreSQL
-    participant AI as Gemini / Groq API
-    participant SMTP as SMTP Transport
+    participant AI as Gemini Pool (Keys 1 & 2) / Groq
+    participant Excel as Excel Generator (excel.ts)
+    participant SMTP as Nodemailer Brevo SMTP
 
-    Note over Inngest,Worker: Daily Execution at 19:00 UTC
-    Inngest->>Worker: Trigger Event: cron("0 19 * * *")
+    Note over Inngest,Worker: Daily Execution at 18:30 UTC (6:30 PM UTC)
+    Inngest->>Worker: Trigger Event: cron("30 18 * * *")
     Worker->>DB: step.run("load-active-users")
     DB-->>Worker: Return User IDs with Active Profiles
 
@@ -394,8 +405,9 @@ sequenceDiagram
         Worker->>DB: Query Top 3 Skill Gaps
         Worker->>AI: Synthesize Daily Highlights
         Worker->>DB: Persist Report Record (JSON Summary)
-        Worker->>SMTP: Dispatch Formatted HTML Email
-        SMTP-->>Worker: Email Accepted
+        Worker->>Excel: generateJobsExcel(userId) -> Full .xlsx Buffer
+        Worker->>SMTP: Dispatch Formatted HTML Email with Attached .xlsx Workbook
+        SMTP-->>Worker: Email Accepted (with Attachment)
     end
 
     Worker-->>Inngest: Complete Workflow Run { totalUsers, results }
@@ -444,6 +456,13 @@ sequenceDiagram
 - **Context**: Generative models frequently fabricate candidate qualifications or claim matching skills not present in the source data.
 - **Decision**: Constrain LLM prompts with strictly validated matched and missing skill arrays, backed by an automatic fallback to deterministic grounded templates.
 - **Rationale**: Ensures every claim in the UI is verifiable against the candidate profile and job requirements, preventing candidate deception.
+
+### ADR-009: Multi-Key API Pooling & Tiered Crawler Failover (Gemini, Firecrawl, Scrape.do)
+- **Context**: Free and consumption-tiered third-party APIs (Gemini tokens/RPM, Firecrawl scrape credits) frequently hit rate limits (HTTP 429) or quota exhaustion (HTTP 402), which would otherwise abort resume parsing, embeddings, or job discovery.
+- **Decision**: Implement resilient `ApiKeyPool` and `CrawlerPool` managers with round-robin load distribution, automatic cooldown quarantining, and multi-tier engine failover.
+- **Rationale**:
+  - **AI Inference**: Load balances across `GEMINI_API_KEY` and `GEMINI_API_KEY2`. Upon encountering 429 or `RESOURCE_EXHAUSTED`, the exhausted key is quarantined for 5 minutes and execution immediately retries on the backup key. If all Gemini keys fail, tasks fall back to Groq or deterministic heuristics.
+  - **Web Crawling**: Dispatches non-ATS scraping requests through Firecrawl Key 1 -> Firecrawl Key 2 -> Scrape.do Residential Proxy (`SCRAPEDO_API_KEY`) -> Direct HTTP fetch. Anti-bot obstacles and depleted credits in one vendor do not compromise discovery sync.
 
 ---
 

@@ -1,5 +1,12 @@
 import { prisma } from "@repo/db";
-import { getEmbedding, cosineSimilarity, generateTextWithGemini, generateTextWithGroq } from "@repo/ai-clients";
+import {
+  getEmbedding,
+  cosineSimilarity,
+  generateTextWithGemini,
+  generateTextWithGroq,
+  geminiKeyPool,
+  groqKeyPool,
+} from "@repo/ai-clients";
 import type { ScoredJobOutput } from "@repo/shared-types";
 import { computeSkillGapsForUser } from "./skillGaps";
 
@@ -228,10 +235,8 @@ export async function generateAIExplanation(
   jobTitle?: string,
   companyName?: string
 ): Promise<string> {
-  const hasGemini =
-    process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.startsWith("AQ.placeholder");
-  const hasGroq =
-    process.env.GROQ_API_KEY && !process.env.GROQ_API_KEY.startsWith("gsk_placeholder");
+  const hasGemini = geminiKeyPool.size > 0;
+  const hasGroq = groqKeyPool.size > 0;
 
   if (!hasGemini && !hasGroq) {
     return generateGroundedExplanation(matchScore, matchedSkills, missingSkills);

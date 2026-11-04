@@ -108,10 +108,11 @@ Buffer Extraction (`extractTextFromBuffer` in `resumeParser.ts`)
        v
 AI Extraction Pipeline
        |
-       +---> Primary: Google Gemini (`gemini-2.0-flash` or `gemini-1.5-flash`)
+       +---> Primary: Google Gemini Key Pool (`GEMINI_API_KEY` & `GEMINI_API_KEY2`)
+       |     Automatic 429 / quota failover across keys with model candidate fallback
        |     Prompt instructs strict JSON conforming to `ResumeParsedOutputSchema`
        |
-       +---> Secondary Fallback: Groq Cloud (`llama-3.3-70b-versatile`)
+       +---> Secondary Fallback: Groq Cloud (`llama-3.3-70b-versatile` / `llama-3.1-8b-instant`)
        |
        +---> Tertiary Fallback: `heuristicParse()` using regex keyword dictionary
        |
@@ -139,7 +140,7 @@ Database Persistence (`packages/db`)
 Discovery Trigger (User Button or Inngest Periodic Sync)
        |
        v
-ATS Fetchers (`@repo/ats-connectors`)
+ATS Fetchers & Crawlers (`@repo/ats-connectors`)
        |
        +---> Greenhouse (`https://boards-api.greenhouse.io/v1/boards/{board}/jobs`)
        +---> Lever (`https://api.lever.co/v0/postings/{site}`)
@@ -147,7 +148,12 @@ ATS Fetchers (`@repo/ats-connectors`)
        +---> Workable (`https://apply.workable.com/api/v3/accounts/{subdomain}/jobs`)
        +---> SmartRecruiters (`https://api.smartrecruiters.com/v1/companies/{company}/postings`)
        +---> Workday (`wday/cxs/{tenant}/{site}/jobs`)
-       +---> Firecrawl (Web scrape on generic career pages)
+       +---> Multi-Engine Web Crawler Pool (`crawlTargetPage` in `crawlerPool.ts`):
+       |     1. Firecrawl Key 1 (`FIRECRAWL_API_KEY`)
+       |     2. Firecrawl Key 2 (`FIRECRAWL_API_KEY2` on 429 rate limit or 402 quota)
+       |     3. Scrape.do Residential Proxy (`SCRAPEDO_API_KEY` for anti-bot bypass)
+       |     4. Direct HTTP Fetch with custom User-Agent
+       |     5. Safe Heuristic Fallback
        |
        v
 Normalization (`normalizeJob` in `packages/ats-connectors/src/normalize.ts`)
@@ -284,8 +290,8 @@ Prisma Transaction:
 ### Flow 7: Daily Reporting, Excel Export & Email Delivery
 
 ```
-Inngest Daily Cron (`dailyReportCron` at 19:00 UTC)
-       |
+Inngest Daily Cron (`dailyReportCron` at 18:30 UTC / 6:30 PM UTC)
+       | (Triggers `cron: "30 18 * * *"`)
        v
 Load All Users with Active Candidate Profiles
        |
@@ -301,16 +307,16 @@ For Each User:
 Generate Report Summary JSON (`generateDailyReport` in `reporting.ts`)
        |
        v
-Compile Formatted HTML Email Body (`sendDailyReportEmail` in `reporting.ts`)
-       |
+Generate Full Candidate Jobs Spreadsheet (`generateJobsExcel` in `excel.ts`)
+       | (Extracts tracked jobs with salary LPA, match score, and clickable application links)
        v
-Dispatch Outbound Email via Nodemailer (`sendEmail` in `email.ts`)
-       |
+Compile Formatted Neobrutalist HTML & Text Email (`sendDailyReportEmail` in `email.ts`)
+       | (Attaches `job-intel-pipeline-YYYY-MM-DD.xlsx` directly)
        v
-(Optional User Export) Generate Multi-Tab Spreadsheet via `exceljs` (`excel.ts`)
-       +---> Sheet 1: Active Applications & Status History
-       +---> Sheet 2: Discovered Matches & Match Scores
-       +---> Sheet 3: Skill Gap Analysis & Market Frequency
+Dispatch Outbound Email via Nodemailer Brevo SMTP (`sendEmail` in `email.ts`)
+       |
+       +---> Success: Email received by user with full Excel attachment
+       +---> Fallback / Failure: In-app Report record remains intact in Neon DB (AC 25.3)
 ```
 
 ---
@@ -347,9 +353,10 @@ Dispatch Outbound Email via Nodemailer (`sendEmail` in `email.ts`)
 
 ### 3.4 AI Clients Package (`packages/ai-clients`)
 
-- [`src/gemini.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ai-clients/src/gemini.ts): Wrapper for the Google Generative AI SDK. Handles text generation, model fallback (`gemini-2.0-flash` -> `gemini-1.5-flash`), temperature control, and JSON mode enforcement.
-- [`src/groq.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ai-clients/src/groq.ts): Wrapper for Groq Cloud SDK executing Llama 3.3 70B for ultra-fast fallback inference.
-- [`src/embeddings.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ai-clients/src/embeddings.ts): Generates 1536-dimensional floating point vector embeddings. Implements vector cosine similarity calculations.
+- [`src/keyPool.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ai-clients/src/keyPool.ts): Multi-key API pool manager (`ApiKeyPool`) supporting `geminiKeyPool` and `groqKeyPool`. Handles comma-separated lists, round-robin load distribution, and 5-minute cooldown quarantining upon encountering HTTP 429 or `RESOURCE_EXHAUSTED` errors.
+- [`src/gemini.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ai-clients/src/gemini.ts): Wrapper for the Google Generative AI SDK using the pooled key manager. Handles text generation, model fallback (`gemini-1.5-flash` -> `gemini-3.8-flash` -> `gemini-flash-latest`), temperature control, and JSON mode enforcement.
+- [`src/groq.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ai-clients/src/groq.ts): Wrapper for Groq Cloud SDK executing Llama 3.1 8B / 3.3 70B with key rotation on rate limits.
+- [`src/embeddings.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ai-clients/src/embeddings.ts): Generates 1536-dimensional floating point vector embeddings with automatic Gemini key failover and deterministic hash fallback. Implements vector cosine similarity calculations.
 - [`src/index.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ai-clients/src/index.ts): Barrel export for AI client utilities.
 
 ---
@@ -357,13 +364,14 @@ Dispatch Outbound Email via Nodemailer (`sendEmail` in `email.ts`)
 ### 3.5 ATS Connectors Package (`packages/ats-connectors`)
 
 - [`src/normalize.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/normalize.ts): Core transformation logic mapping vendor-specific JSON payloads into the standardized `NormalizedJob` interface.
+- [`src/crawlerPool.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/crawlerPool.ts): Multi-engine web crawler manager (`crawlTargetPage`). Dispatches scraping requests through Firecrawl Key 1 -> Firecrawl Key 2 (on 429/402 credit exhaustion) -> Scrape.do Residential Proxy (`SCRAPEDO_API_KEY`) -> Direct HTTP fetch -> Safe heuristic fallback.
+- [`src/firecrawl.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/firecrawl.ts): Uses the crawler pool to scrape and extract structured engineering listings from unstandardized custom career pages.
 - [`src/greenhouse.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/greenhouse.ts): Fetches open postings from Greenhouse public boards (`boards-api.greenhouse.io`).
 - [`src/lever.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/lever.ts): Queries Lever public postings API (`api.lever.co`).
 - [`src/ashby.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/ashby.ts): Queries Ashby public job board API (`api.ashbyhq.com`).
 - [`src/workable.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/workable.ts): Ingests postings from Workable account boards (`apply.workable.com`).
 - [`src/smartrecruiters.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/smartrecruiters.ts): Connects to SmartRecruiters postings API.
 - [`src/workday.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/workday.ts): Queries Workday Candidate Experience (CXS) search endpoints.
-- [`src/firecrawl.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/firecrawl.ts): Uses Firecrawl to scrape and extract listings from unstandardized custom career pages.
 - [`src/openPlatforms.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/openPlatforms.ts): Scrapes developer jobs from open platforms like RemoteOK and Hacker News Who is Hiring.
 - [`src/index.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/packages/ats-connectors/src/index.ts): Barrel export for all ATS connectors.
 
@@ -393,7 +401,7 @@ Dispatch Outbound Email via Nodemailer (`sendEmail` in `email.ts`)
 - [`server/rateLimit.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/rateLimit.ts): Token-bucket rate limiter safeguarding AI inference and sync endpoints from excessive calls.
 - [`server/userFitCache.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/userFitCache.ts): High-speed in-memory cache for candidate profiles and skills to avoid redundant database reads during multi-job evaluations.
 - [`server/inngest/client.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/inngest/client.ts): Inngest client initialization.
-- [`server/inngest/functions.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/inngest/functions.ts): Inngest serverless workflow definitions for the 19:00 daily report cron and 6-hour discovery sync cron.
+- [`server/inngest/functions.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/inngest/functions.ts): Inngest serverless workflow definitions for the 18:30 UTC (6:30 PM UTC) daily report cron (with full Excel spreadsheet attachment) and 6-hour discovery sync cron.
 
 ---
 

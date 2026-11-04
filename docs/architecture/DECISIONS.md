@@ -163,3 +163,29 @@ Lightweight ADR log. Each entry: Status, Context, Decision, Consequences. New de
 **Consequences:**
 - *NeonDB Object Storage:* keeps all infrastructure (Postgres + pgvector + object storage) inside a single Neon project. Five env vars (`AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `STORAGE_BUCKET_NAME`) replace the four Firebase vars. No Google Cloud dependency, no service-account JSON, no newline-escaping quirks. The AWS SDK is well-documented and the S3 pre-signed URL pattern is widely understood.
 - *No Sentry:* uncaught exceptions in route handlers exist only in host logs, whose retention is limited, and nothing pushes an alert by itself, groups errors, or tracks releases. Acceptable for a small single-owner project through Phase 8, mitigated by the daily health-summary email. Revisit at Phase 9, when two headless services with no UI exist. Re-adding a tracker later is a small change (one SDK, two env vars).
+
+---
+
+## ADR-014: Multi-key pooling, Scrape.do proxy engine, and 18:30 UTC report schedule with Excel attachment
+
+**Status:** Accepted
+
+**Context:**
+1. Third-party free tiers (Gemini token/RPM quotas, Firecrawl scrape credit limits) hit rate limits (HTTP 429) and credit exhaustion (HTTP 402) during intensive discovery crawls and resume parsing.
+2. Certain enterprise career pages deploy aggressive anti-bot protections that block direct scraping.
+3. Users requested the daily intelligence email dispatch at 6:30 PM UTC (18:30 UTC) with their complete tracked job inventory attached directly as an Excel spreadsheet (`.xlsx`).
+
+**Decision:**
+1. **Gemini & Groq Key Pooling:** Implement an active `ApiKeyPool` (`packages/ai-clients/src/keyPool.ts`) that distributes load via round-robin across `GEMINI_API_KEY` and `GEMINI_API_KEY2` (as well as `GROQ_API_KEY` and `GROQ_API_KEY2`). When a 429 or `RESOURCE_EXHAUSTED` error is detected, the key is quarantined for 5 minutes and the call automatically fails over to the backup key.
+2. **Multi-Engine Web Crawler Pool:** Implement `CrawlerPool` (`packages/ats-connectors/src/crawlerPool.ts`) with a structured failover sequence:
+   - Firecrawl Key 1 (`FIRECRAWL_API_KEY`)
+   - Firecrawl Key 2 (`FIRECRAWL_API_KEY2` on 429 or 402 quota exhaustion)
+   - Scrape.do Residential Proxy (`SCRAPEDO_API_KEY` for anti-bot / Cloudflare bypass)
+   - Direct HTTP fetch with custom User-Agent
+   - Safe heuristic fallback
+3. **Daily Schedule & Attachment:** Inngest's `dailyReportCron` triggers at 18:30 UTC (`cron: "30 18 * * *"`). `generateJobsExcel()` generates the binary `.xlsx` buffer containing the candidate's complete tracked jobs (with salary LPA, match score, and clickable application links), which is attached directly to the outgoing email via Nodemailer Brevo SMTP transport.
+
+**Consequences:**
+- Eliminates single points of failure on API quota limits; provides automatic failover without user disruption.
+- High crawl success rate across complex enterprise career sites using Scrape.do proxy.
+- Users receive a comprehensive offline-ready Excel spreadsheet in their inbox daily at 6:30 PM UTC.

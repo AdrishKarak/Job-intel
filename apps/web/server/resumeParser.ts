@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateTextWithGemini, geminiKeyPool } from "@repo/ai-clients";
 import mammoth from "mammoth";
 import pdfParse from "pdf-parse";
 import {
@@ -116,22 +116,10 @@ function heuristicParse(text: string): ResumeParsedOutput {
 export async function parseResumeWithGemini(
   resumeText: string
 ): Promise<ResumeParsedOutput> {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
+  if (geminiKeyPool.size === 0) {
     console.warn("GEMINI_API_KEY missing, using heuristic fallback parser.");
     return heuristicParse(resumeText);
   }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  // Using gemini-1.5-flash for fast, structured resume parsing
-  const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    generationConfig: {
-      responseMimeType: "application/json",
-      temperature: 0.1,
-    },
-  });
 
   // Prompt injection defense & delimiting per Guardrails §1 & AGENT_PROMPTS.md
   const prompt = `You are extracting structured candidate information from a resume. Return ONLY valid JSON matching this shape, with no additional commentary:
@@ -158,8 +146,10 @@ ${resumeText.slice(0, 50000)}
 """`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const responseText = await generateTextWithGemini(prompt, {
+      jsonMode: true,
+      temperature: 0.1,
+    });
     const parsedJson = JSON.parse(responseText);
 
     const validated = ResumeParsedOutputSchema.safeParse(parsedJson);
