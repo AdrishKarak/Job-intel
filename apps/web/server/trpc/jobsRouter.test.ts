@@ -70,6 +70,8 @@ describe("jobsRouter Integration & Per-User Isolation", () => {
     prisma: mockPrisma as any,
     auth: { userId: "clerk_crm" } as any,
     user: { id: testUserId, clerkId: "clerk_crm", email: "crm@example.com", name: "CRM User" } as any,
+    authError: null,
+    dbError: null,
   };
 
   beforeEach(() => {

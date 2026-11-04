@@ -2,6 +2,7 @@ import { prisma } from "@repo/db";
 import type { ReportSummary, BestMatch, SkillGapSummaryItem, StatusChangeSummaryItem } from "@repo/shared-types";
 import { sendDailyReportEmail } from "./email";
 import { getSkillGapsForUser } from "./skillGaps";
+import { generateJobsExcel } from "./excel";
 
 export async function generateDailyReport(userId: string) {
   // 1. Fetch user info
@@ -83,10 +84,22 @@ export async function generateDailyReport(userId: string) {
     },
   });
 
-  // 8. Attempt email delivery
+  // 8. Attempt email delivery with attached full Excel spreadsheet
   if (user.email) {
     try {
-      await sendDailyReportEmail(user.email, summary, user.name || undefined);
+      let excelAttachment: Buffer | undefined;
+      try {
+        excelAttachment = await generateJobsExcel(userId, prisma);
+      } catch (excelErr) {
+        console.error(`Failed to generate excel attachment for ${user.email}:`, excelErr);
+      }
+
+      await sendDailyReportEmail(
+        user.email,
+        summary,
+        user.name || undefined,
+        excelAttachment
+      );
     } catch (err) {
       console.error(`Failed to send daily report email to ${user.email}:`, err);
       // AC 25.3: Report remains intact in database

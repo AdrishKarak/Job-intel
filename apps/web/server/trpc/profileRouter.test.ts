@@ -102,6 +102,8 @@ describe("profileRouter Integration & Guardrails", () => {
     prisma: mockPrisma as any,
     auth: { userId: "clerk_123" } as any,
     user: { id: testUserId, clerkId: "clerk_123", email: "test@example.com", name: "Test User" } as any,
+    authError: null,
+    dbError: null,
   };
 
   beforeEach(() => {

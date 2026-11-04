@@ -62,6 +62,8 @@ describe("dashboardRouter Integration & User Isolation (Phase 5)", () => {
     prisma: mockPrisma as any,
     auth: { userId: "clerk_dash" } as any,
     user: { id: testUserId, clerkId: "clerk_dash", email: "dash@example.com", name: "Dash User" } as any,
+    authError: null,
+    dbError: null,
   };
 
   beforeEach(() => {

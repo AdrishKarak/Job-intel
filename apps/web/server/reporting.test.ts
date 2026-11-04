@@ -2,17 +2,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as XLSX from "xlsx";
 import { generateJobsExcel } from "./excel";
 import { sendDailyReportEmail } from "./email";
+import { dailyReportCron } from "./inngest/functions";
 import { appRouter } from "./trpc/root";
 import type { Context } from "./trpc/context";
+
+const mockSendMail = vi.fn(async (options: any) => ({
+  messageId: "mock_test_msg_id_123",
+  accepted: [options.to],
+}));
 
 // Mock nodemailer
 vi.mock("nodemailer", () => ({
   default: {
     createTransport: vi.fn(() => ({
-      sendMail: vi.fn(async (options) => ({
-        messageId: "mock_test_msg_id_123",
-        accepted: [options.to],
-      })),
+      sendMail: mockSendMail,
     })),
   },
 }));
@@ -63,6 +66,8 @@ describe("Reporting, Email & Excel Delivery (Phase 7)", () => {
     prisma: mockPrisma as any,
     auth: { userId: "clerk_rep" } as any,
     user: { id: testUserId, clerkId: "clerk_rep", email: "seeker@test.com", name: "Seeker Test" } as any,
+    authError: null,
+    dbError: null,
   };
 
   beforeEach(() => {
@@ -146,6 +151,61 @@ describe("Reporting, Email & Excel Delivery (Phase 7)", () => {
     const res = await sendDailyReportEmail("seeker@test.com", summary, "Seeker");
     expect(res.success).toBe(true);
     expect(res.messageId).toBeDefined();
+  });
+
+  it("formats and dispatches daily email with attached Excel spreadsheet", async () => {
+    const summary = {
+      newJobs: 3,
+      bestMatches: [
+        { jobId: "j1", title: "Staff Engineer", company: "Stripe", matchScore: 94 },
+      ],
+      skillGaps: [{ skill: "Kubernetes", frequency: 4 }],
+      statusChanges: [{ jobId: "j1", from: "DISCOVERED", to: "APPLIED" }],
+    };
+
+    const excelBuffer = await generateJobsExcel(testUserId, mockPrisma);
+    const res = await sendDailyReportEmail("seeker@test.com", summary, "Seeker", excelBuffer);
+    expect(res.success).toBe(true);
+    expect(res.messageId).toBeDefined();
+  });
+
+  it("passes Excel spreadsheet attachment to mail transport when SMTP is configured", async () => {
+    process.env.SMTP_USER = "smtp_test_user";
+    process.env.SMTP_PASS = "smtp_test_pass";
+    mockSendMail.mockClear();
+
+    const excelBuffer = Buffer.from("dummy-excel-data");
+    const summary = {
+      newJobs: 1,
+      bestMatches: [],
+      skillGaps: [],
+      statusChanges: [],
+    };
+
+    const res = await sendDailyReportEmail("seeker@test.com", summary, "Seeker", excelBuffer);
+    expect(res.success).toBe(true);
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "seeker@test.com",
+        attachments: expect.arrayContaining([
+          expect.objectContaining({
+            filename: expect.stringMatching(/^job-intel-pipeline-\d{4}-\d{2}-\d{2}\.xlsx$/),
+            content: excelBuffer,
+            contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          }),
+        ]),
+      })
+    );
+
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASS;
+  });
+
+  it("schedules daily report cron at 6:30 PM UTC (18:30 UTC)", () => {
+    expect(dailyReportCron).toBeDefined();
+    // Verify Inngest triggers contain 18:30 UTC cron pattern
+    const triggers = (dailyReportCron as any).opts?.triggers || (dailyReportCron as any).rawTriggers;
+    expect(JSON.stringify(triggers)).toContain("30 18 * * *");
   });
 
   it("handles graceful 'nothing new' case with positive messaging (AC 25.2)", async () => {

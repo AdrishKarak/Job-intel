@@ -1,11 +1,18 @@
 import nodemailer from "nodemailer";
 import type { ReportSummary } from "@repo/shared-types";
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+}
+
 export interface SendEmailOptions {
   to: string;
   subject: string;
   text: string;
   html: string;
+  attachments?: EmailAttachment[];
 }
 
 /**
@@ -51,6 +58,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
       subject: options.subject,
       text: options.text,
       html: options.html,
+      attachments: options.attachments,
     });
     console.log(`Email successfully dispatched to ${options.to}. ID: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
@@ -66,7 +74,8 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
 export async function sendDailyReportEmail(
   to: string,
   summary: ReportSummary,
-  recipientName?: string
+  recipientName?: string,
+  excelAttachment?: Buffer
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const name = recipientName || "Job Seeker";
   const today = new Date().toLocaleDateString(undefined, {
@@ -87,7 +96,11 @@ export async function sendDailyReportEmail(
   let textContent = `Hello ${name},\n\nHere is your daily job intelligence briefing for ${today}.\n\n`;
 
   if (isNothingNew) {
-    textContent += `Good news: your pipeline is steady! There are no new positions or status updates for your tracked criteria in the last 24 hours.\n\nWe will continue scanning ATS boards and alert you as soon as new opportunities emerge.\n\nBest,\nAI Job Intelligence Platform`;
+    textContent += `Good news: your pipeline is steady! There are no new positions or status updates for your tracked criteria in the last 24 hours.\n\nWe will continue scanning ATS boards and alert you as soon as new opportunities emerge.\n\n`;
+    if (excelAttachment) {
+      textContent += `📎 Attached: Complete spreadsheet of your tracked jobs (.xlsx).\n\n`;
+    }
+    textContent += `Best,\nAI Job Intelligence Platform`;
   } else {
     textContent += `📊 Today's Highlights:\n`;
     textContent += `- New Positions Discovered: ${summary.newJobs}\n`;
@@ -107,6 +120,10 @@ export async function sendDailyReportEmail(
         textContent += `• ${g.skill}: required by ${g.frequency} recent jobs\n`;
       }
       textContent += `\n`;
+    }
+
+    if (excelAttachment) {
+      textContent += `📎 Attached: Full jobs spreadsheet (.xlsx) with salary ranges and clickable application links.\n\n`;
     }
 
     textContent += `Open your dashboard to review and manage your applications.\n\nBest,\nAI Job Intelligence Platform`;
@@ -136,6 +153,17 @@ export async function sendDailyReportEmail(
     <div class="badge">Daily Report</div>
     <h1>Job Intelligence Summary</h1>
     <p style="font-size: 13px; margin-top: 0;">Hello <strong>${name}</strong>, here is your daily briefing for ${today}.</p>
+
+    ${
+      excelAttachment
+        ? `
+      <div class="card" style="background: #F0FDF4; border: 2px solid #141414; margin-bottom: 14px;">
+        <div style="font-weight: bold; margin-bottom: 4px; font-size: 13px;">📎 Attached: Full Job Pipeline Spreadsheet (.xlsx)</div>
+        <div style="font-size: 12px; color: #52525B;">Your complete tracked job inventory is attached to this email with clickable application links, compensation, and match scores.</div>
+      </div>
+    `
+        : ""
+    }
 
     ${
       isNothingNew
@@ -212,10 +240,22 @@ export async function sendDailyReportEmail(
 </html>
   `;
 
+  const dateStr = new Date().toISOString().split("T")[0];
+  const attachments = excelAttachment
+    ? [
+        {
+          filename: `job-intel-pipeline-${dateStr}.xlsx`,
+          content: excelAttachment,
+          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+      ]
+    : undefined;
+
   return sendEmail({
     to,
     subject,
     text: textContent,
     html: htmlContent,
+    attachments,
   });
 }

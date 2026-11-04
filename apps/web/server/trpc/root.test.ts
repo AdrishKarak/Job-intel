@@ -8,6 +8,8 @@ describe("tRPC Root Router", () => {
       prisma: {} as any,
       auth: null,
       user: null,
+      authError: null,
+      dbError: null,
     };
 
     const caller = appRouter.createCaller(mockContext);
