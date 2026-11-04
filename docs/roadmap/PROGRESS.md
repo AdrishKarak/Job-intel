@@ -101,7 +101,7 @@ Per ADR-012, through Phase 8 the system operates as a single application (`apps/
   - `apps/web/server/email.ts`: Nodemailer email transporter configured with Brevo SMTP (`smtp-relay.brevo.com:587`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`), supporting both active highlight notifications (AC 25.1) and graceful "nothing new" positive updates (AC 25.2), complete with neobrutalist HTML layout.
   - `apps/web/server/reporting.ts`: aggregates 24h discovery counts, top 5 best matches, in-demand skill gaps, and status transitions, persists `Report` record in Neon Postgres, and dispatches email (guaranteeing in-app persistence even if email fails per AC 25.3).
   - `apps/web/server/inngest/`: Inngest client and background functions:
-    - `dailyReportCron`: scheduled daily trigger at 6:30 PM UTC (`cron: "30 18 * * *"`) for all active candidates, with the full job pipeline Excel spreadsheet (`.xlsx`) attached directly to the email.
+    - `dailyReportCron`: scheduled daily trigger at 7:00 PM UTC / 12:30 AM IST (`cron: "0 19 * * *"`) for all active candidates, with the full job pipeline Excel spreadsheet (`.xlsx`) attached directly to the email.
     - `syncDiscoveryCron`: periodic ATS polling & scoring trigger every 6 hours (`cron: "0 */6 * * *"`).
   - `apps/web/app/api/inngest/route.ts`: Next.js 15 Route Handler serving Inngest functions.
   - `apps/web/server/trpc/reportsRouter.ts`: procedures for listing reports (`list`), on-demand report generation (`generateNow`), and binary Excel download (`exportExcel`).

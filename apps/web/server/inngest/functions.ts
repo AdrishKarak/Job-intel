@@ -7,12 +7,13 @@ import { logger } from "../logger";
 import { sendEmail } from "../email";
 
 /**
- * 6:30 PM UTC Daily Trigger for Email Intelligence Report (cron: "30 18 * * *", AC 25.1)
+ * 7:00 PM UTC Daily Trigger for Email Intelligence Report (cron: "0 19 * * *", AC 25.1)
+ * 7:00 PM UTC = 12:30 AM IST (India Standard Time).
  */
 export const dailyReportCron = inngest.createFunction(
   {
     id: "daily-job-report-trigger",
-    triggers: [{ cron: "30 18 * * *" }],
+    triggers: [{ cron: "0 19 * * *" }],
     onFailure: async ({ error, event }: any) => {
       logger.error("inngest.dailyReportCron.onFailure", "Daily report cron execution failed", {
         runId: event?.data?.run_id || "cron_failure",

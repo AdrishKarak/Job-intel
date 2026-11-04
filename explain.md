@@ -290,8 +290,8 @@ Prisma Transaction:
 ### Flow 7: Daily Reporting, Excel Export & Email Delivery
 
 ```
-Inngest Daily Cron (`dailyReportCron` at 18:30 UTC / 6:30 PM UTC)
-       | (Triggers `cron: "30 18 * * *"`)
+Inngest Daily Cron (`dailyReportCron` at 19:00 UTC / 12:30 AM IST)
+       | (Triggers `cron: "0 19 * * *"`)
        v
 Load All Users with Active Candidate Profiles
        |
@@ -401,7 +401,7 @@ Dispatch Outbound Email via Nodemailer Brevo SMTP (`sendEmail` in `email.ts`)
 - [`server/rateLimit.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/rateLimit.ts): Token-bucket rate limiter safeguarding AI inference and sync endpoints from excessive calls.
 - [`server/userFitCache.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/userFitCache.ts): High-speed in-memory cache for candidate profiles and skills to avoid redundant database reads during multi-job evaluations.
 - [`server/inngest/client.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/inngest/client.ts): Inngest client initialization.
-- [`server/inngest/functions.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/inngest/functions.ts): Inngest serverless workflow definitions for the 18:30 UTC (6:30 PM UTC) daily report cron (with full Excel spreadsheet attachment) and 6-hour discovery sync cron.
+- [`server/inngest/functions.ts`](file:///home/adrish/Desktop/ai-job-intelligence-platform/apps/web/server/inngest/functions.ts): Inngest serverless workflow definitions for the 19:00 UTC / 12:30 AM IST daily report cron (with full Excel spreadsheet attachment) and 6-hour discovery sync cron.
 
 ---
 

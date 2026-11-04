@@ -53,7 +53,7 @@ flowchart TD
 
     subgraph WorkerTier["Async & Scheduled Execution Tier"]
         InngestClient["Inngest Workflow Runner"]
-        CronDaily["Daily Intelligence Cron (18:30 UTC / 6:30 PM UTC)"]
+        CronDaily["Daily Intelligence Cron (19:00 UTC / 12:30 AM IST)"]
         CronSync["ATS Discovery Sync Cron (Every 6h)"]
     end
 
@@ -394,8 +394,8 @@ sequenceDiagram
     participant Excel as Excel Generator (excel.ts)
     participant SMTP as Nodemailer Brevo SMTP
 
-    Note over Inngest,Worker: Daily Execution at 18:30 UTC (6:30 PM UTC)
-    Inngest->>Worker: Trigger Event: cron("30 18 * * *")
+    Note over Inngest,Worker: Daily Execution at 19:00 UTC (12:30 AM IST)
+    Inngest->>Worker: Trigger Event: cron("0 19 * * *")
     Worker->>DB: step.run("load-active-users")
     DB-->>Worker: Return User IDs with Active Profiles
 

@@ -32,7 +32,7 @@ sequenceDiagram
     participant MCP as apps/mcp-server
     participant DB as Postgres
 
-    Inngest->>Web: scheduled trigger at 6:30 PM UTC (cron: "30 18 * * *")
+    Inngest->>Web: scheduled trigger at 19:00 UTC / 12:30 AM IST (cron: "0 19 * * *")
     Web->>Agent: start orchestration run (per user)
     Agent->>MCP: searchJobs(profile)
     MCP->>DB: query Company registry, discover/normalize jobs

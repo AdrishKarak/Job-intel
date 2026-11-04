@@ -201,11 +201,11 @@ describe("Reporting, Email & Excel Delivery (Phase 7)", () => {
     delete process.env.SMTP_PASS;
   });
 
-  it("schedules daily report cron at 6:30 PM UTC (18:30 UTC)", () => {
+  it("schedules daily report cron at 7:00 PM UTC (19:00 UTC / 12:30 AM IST)", () => {
     expect(dailyReportCron).toBeDefined();
-    // Verify Inngest triggers contain 18:30 UTC cron pattern
+    // Verify Inngest triggers contain 19:00 UTC (12:30 AM IST) cron pattern
     const triggers = (dailyReportCron as any).opts?.triggers || (dailyReportCron as any).rawTriggers;
-    expect(JSON.stringify(triggers)).toContain("30 18 * * *");
+    expect(JSON.stringify(triggers)).toContain("0 19 * * *");
   });
 
   it("handles graceful 'nothing new' case with positive messaging (AC 25.2)", async () => {
